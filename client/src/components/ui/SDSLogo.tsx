@@ -11,7 +11,7 @@ interface SDSLogoProps {
 }
 
 /**
- * Premium brand icon emblem for SDS TILES & CERAMICS.
+ * Premium brand icon emblem for TileRoom.
  * Represents precision ceramic tile craftsmanship with warm clay, gold, and obsidian facets.
  */
 export function SDSIcon({
@@ -162,7 +162,7 @@ export function SDSIcon({
           transform="rotate(45)"
           fill={`url(#${id("sds-gold-bevel")})`}
         />
-        {/* Monogram "SDS" */}
+        {/* Monogram "TR" */}
         <text
           x="0"
           y="2.6"
@@ -170,10 +170,10 @@ export function SDSIcon({
           fill="#28332C"
           fontFamily="system-ui, -apple-system, sans-serif"
           fontWeight="900"
-          fontSize="6.5"
-          letterSpacing="0.4"
+          fontSize="6.2"
+          letterSpacing="0.2"
         >
-          SDS
+          TR
         </text>
       </g>
     </svg>
@@ -181,7 +181,7 @@ export function SDSIcon({
 }
 
 /**
- * Attractive brand mark for SDS TILES & CERAMICS with responsive typography.
+ * Attractive brand mark for TileRoom with responsive typography.
  */
 export function SDSLogo({
   className,
@@ -247,16 +247,7 @@ export function SDSLogo({
               isLight ? "text-white" : "text-stone-950"
             )}
           >
-            SDS
-          </span>
-          <span
-            className={cn(
-              "font-sans font-extrabold uppercase leading-none",
-              currentSize.brandText,
-              isLight ? "text-clay-300" : "text-clay-800"
-            )}
-          >
-            TILES &amp; CERAMICS
+            TileRoom
           </span>
         </div>
 

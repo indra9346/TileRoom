@@ -354,7 +354,7 @@ export function DemosPage() {
             A Trial Room For Every Surface in Your Home
           </h2>
           <p className="mt-3 text-stone-600">
-            From compact bathroom renovations to full villa exterior cladding, see how SDS TILES & CERAMICS handles diverse surfaces with pinpoint accuracy.
+            From compact bathroom renovations to full villa exterior cladding, see how TileRoom handles diverse surfaces with pinpoint accuracy.
           </p>
         </div>
 
@@ -442,7 +442,7 @@ export function DemosPage() {
                     <div className="rounded-2xl border border-champagne-300/80 bg-surface-card p-4 shadow-sm">
                       <div className="flex items-center justify-between text-xs font-semibold text-sage-800 uppercase tracking-wider mb-2">
                         <span>Virtual Preview</span>
-                        <span className="rounded bg-champagne-200 px-1.5 py-0.5 text-[10px] text-sage-900 font-bold">SDS TILES & CERAMICS</span>
+                        <span className="rounded bg-champagne-200 px-1.5 py-0.5 text-[10px] text-sage-900 font-bold">TileRoom</span>
                       </div>
                       <div className="aspect-[4/3] rounded-xl bg-surface-card overflow-hidden relative border border-champagne-300 flex items-center justify-center text-ink text-xs p-4 text-center shadow-inner">
                         <p className="font-medium text-ink-secondary">{currentScenario.transformedDescription}</p>
@@ -459,7 +459,7 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* Comparison: Traditional vs SDS TILES & CERAMICS */}
+      {/* Comparison: Traditional vs TileRoom */}
       <section className="container-page mt-24">
         <div className="on-light relative overflow-hidden rounded-3xl bg-surface-limestone p-6 text-ink sm:p-12">
           <TileScene scene="plank" className="absolute inset-0 h-full w-full" />
@@ -504,7 +504,7 @@ export function DemosPage() {
 
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6">
               <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
-                <span>✓</span> SDS TILES & CERAMICS Virtual Trial Room
+                <span>✓</span> TileRoom Virtual Trial Room
               </div>
               <ul className="mt-4 space-y-3 text-xs sm:text-sm text-stone-200">
                 <li className="flex items-start gap-2">

@@ -889,7 +889,7 @@ export function LandingPage() {
                   Photorealistic Previews Grounded in Reality
                 </h3>
                 <p className="mt-3 text-sm text-ink-secondary leading-relaxed font-medium">
-                  We built SDS TILES & CERAMICS to provide the strongest practical visualization possible. We strictly preserve your room geometry, doors, windows, and fixtures rather than generating fantasy 3D renders.
+                  We built TileRoom to provide the strongest practical visualization possible. We strictly preserve your room geometry, doors, windows, and fixtures rather than generating fantasy 3D renders.
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-4 text-xs text-ink">
                   <div className="rounded-xl border border-hairline bg-surface-sage/60 p-4">

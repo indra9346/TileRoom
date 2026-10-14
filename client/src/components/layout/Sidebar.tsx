@@ -7,7 +7,7 @@ import { DoorNavLink } from "@/components/layout/DoorNavLink";
 import { cn } from "@/lib/cn";
 import { publicNavItems, authNavItems } from "@/lib/navItems";
 
-const COLLAPSE_KEY = "sds_sidebar_collapsed";
+const COLLAPSE_KEY = "tileroom_sidebar_collapsed";
 
 /**
  * Persistent left navigation rail in the style of Gemini / Google AI Studio:
@@ -43,7 +43,7 @@ export function Sidebar() {
       className="hidden lg:sticky lg:top-0 lg:z-20 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:border-r lg:border-hairline lg:bg-surface-card"
     >
       <div className="flex items-center gap-2.5 px-4 py-5">
-        <DoorNavLink to="/" roomLabel="HOME" className="flex shrink-0 items-center" aria-label="SDS Tiles home">
+        <DoorNavLink to="/" roomLabel="HOME" className="flex shrink-0 items-center" aria-label="TileRoom home">
           <SDSIcon className="h-9 w-9" />
         </DoorNavLink>
         {!collapsed && (
@@ -53,7 +53,7 @@ export function Sidebar() {
             transition={{ delay: 0.08 }}
             className="min-w-0 leading-none"
           >
-            <p className="truncate font-display text-sm font-bold text-ink">SDS Tiles</p>
+            <p className="truncate font-display text-sm font-bold text-ink">TileRoom</p>
             <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-sage-600">
               Virtual Trial Room
             </p>

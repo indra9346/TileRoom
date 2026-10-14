@@ -46,7 +46,7 @@ export function PromoBanner({ onFinish }: { onFinish: () => void }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5, ease: "easeInOut" }}
       role="status"
-      aria-label="SDS Tiles and Ceramics: the virtual trial room for your home"
+      aria-label="TileRoom: the virtual trial room for your home"
     >
       <div className="grid min-h-full grid-cols-1 sm:grid-cols-[52%_48%] sm:h-full">
         {/* Text column */}
@@ -71,7 +71,7 @@ export function PromoBanner({ onFinish }: { onFinish: () => void }) {
             >
               <SDSIcon className="h-8 w-8" />
               <span className="font-sans text-xs font-bold uppercase tracking-[0.22em] text-sage-800">
-                SDS Tiles &amp; Ceramics
+                TileRoom
               </span>
             </motion.div>
 

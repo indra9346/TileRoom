@@ -92,7 +92,7 @@ export function SplashScreen({ onFinish }: { onFinish: () => void }) {
             animate={{ opacity: phase === "out" ? 0 : 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.4 }}
           >
-            SDS <span className="text-champagne-600">TILES &amp; CERAMICS</span>
+            TileRoom <span className="text-champagne-600">Virtual Trial Room</span>
           </motion.p>
         </motion.div>
       </motion.div>

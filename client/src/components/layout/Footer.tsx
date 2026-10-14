@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { SwanCredit } from "@/components/layout/SwanCredit";
 import { SDSLogo } from "@/components/ui/SDSLogo";
 
 export function Footer() {
@@ -24,12 +23,11 @@ export function Footer() {
           <Link to="/upload" className="transition hover:text-stone-900">Visualize</Link>
         </div>
 
-        <span className="text-xs text-stone-400">&copy; {new Date().getFullYear()} SDS TILES & CERAMICS. All rights reserved.</span>
+        <span className="text-xs text-stone-400">&copy; {new Date().getFullYear()} TileRoom. All rights reserved.</span>
       </div>
       <div className="container-page mt-5 border-t border-stone-100 pt-4 text-center text-[11px] text-stone-400">
         Realistic visualization preview. Actual lighting conditions, tile batch variations, and grout installation can affect physical finished results.
       </div>
-      <div className="container-page"><SwanCredit /></div>
     </motion.footer>
   );
 }

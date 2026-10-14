@@ -98,7 +98,7 @@ export function LoginPage() {
           </div>
 
           <p className="text-xs text-stone-700">
-            &copy; {new Date().getFullYear()} SDS TILES & CERAMICS. All rights reserved.
+            &copy; {new Date().getFullYear()} TileRoom. All rights reserved.
           </p>
         </div>
       </div>
@@ -165,7 +165,7 @@ export function LoginPage() {
 
           {SIGNUP_ENABLED && (
             <p className="mt-6 text-center text-sm text-stone-600">
-              {mode === "signin" ? "New to SDS TILES & CERAMICS? " : "Already have an account? "}
+              {mode === "signin" ? "New to TileRoom? " : "Already have an account? "}
               <button
                 type="button"
                 className="font-semibold text-clay-700 hover:underline"
@@ -183,7 +183,7 @@ export function LoginPage() {
 
           <div className="mt-8 border-t border-stone-200 pt-6 text-center">
             <Link to="/" className="text-xs text-stone-500 hover:text-stone-900 transition">
-              ← Back to SDS TILES & CERAMICS Home
+              ← Back to TileRoom Home
             </Link>
           </div>
         </motion.div>

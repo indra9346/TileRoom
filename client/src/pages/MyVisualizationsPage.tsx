@@ -63,7 +63,7 @@ function PublicFeed() {
   return (
     <PageContainer className="max-w-6xl">
       <h1 className="font-display text-3xl text-stone-900">Designs</h1>
-      <p className="mt-2 text-stone-600">Real visualizations generated on SDS TILES &amp; CERAMICS that their owners have chosen to make public.</p>
+      <p className="mt-2 text-stone-600">Real visualizations generated on TileRoom that their owners have chosen to make public.</p>
       <p className="mt-1 text-sm text-stone-500">
         <Link to="/login" state={{ from: { pathname: "/my-visualizations" } }} className="font-medium text-stone-900 underline">
           Sign in

@@ -32,7 +32,7 @@ const AdminPage = lazy(() => import("@/pages/AdminPage").then((m) => ({ default:
 const CalculatorPage = lazy(() => import("@/pages/CalculatorPage").then((m) => ({ default: m.CalculatorPage })));
 const DemosPage = lazy(() => import("@/pages/DemosPage").then((m) => ({ default: m.DemosPage })));
 
-const SPLASH_KEY = "sds_splash_shown";
+const SPLASH_KEY = "tileroom_splash_shown";
 
 type IntroPhase = "splash" | "promo" | "doorReveal" | "done";
 

@@ -123,7 +123,7 @@ export function openRazorpayCheckout(checkout: CheckoutInfo, userEmail: string |
       order_id: checkout.orderId,
       amount: checkout.amountPaise,
       currency: checkout.currency,
-      name: "SDS TILES & CERAMICS",
+      name: "TileRoom",
       description: `${checkout.packageName} — ${checkout.credits} credits`,
       prefill: userEmail ? { email: userEmail } : undefined,
       theme: { color: "#1c1917" },

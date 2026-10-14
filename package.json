@@ -1,8 +1,8 @@
 {
-  "name": "tile-visualizer-server",
+  "name": "tileroom-server",
   "private": true,
   "version": "0.1.0",
-  "description": "Server-side AI service layer + Vercel API routes for the AI Tile Visualization platform (Phases 1-2). No frontend yet.",
+  "description": "Server-side AI service layer + Vercel API routes for TileRoom platform.",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
