@@ -1,7 +1,7 @@
 -- ============================================================
--- TileRoom: Consolidated Master Database Schema
--- Run this in the Supabase SQL Editor of your new project
--- Idempotent: safe to run on a fresh or existing database
+-- TileRoom: Consolidated Master Database Schema (Self-Healing)
+-- Run this in the Supabase SQL Editor
+-- Handles both brand-new projects and projects with pre-existing tables.
 -- ============================================================
 
 -- ---------- EXTENSIONS ----------
@@ -31,7 +31,6 @@ do $$ begin
   );
 exception when duplicate_object then null; end $$;
 
--- If surface_type already existed without the newer values, append them safely
 alter type surface_type add value if not exists 'backsplash';
 alter type surface_type add value if not exists 'shower_wall';
 alter type surface_type add value if not exists 'step_tread';
@@ -69,6 +68,11 @@ create table if not exists profiles (
   updated_at timestamptz not null default now()
 );
 
+alter table profiles add column if not exists display_name text;
+alter table profiles add column if not exists is_admin boolean not null default false;
+alter table profiles add column if not exists created_at timestamptz not null default now();
+alter table profiles add column if not exists updated_at timestamptz not null default now();
+
 drop trigger if exists trg_profiles_updated_at on profiles;
 create trigger trg_profiles_updated_at
   before update on profiles
@@ -85,11 +89,17 @@ create policy "profiles_select_own" on profiles
 -- ============================================================
 create table if not exists projects (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  name text not null check (char_length(trim(name)) > 0),
+  user_id uuid references auth.users(id) on delete cascade,
+  name text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- In case a table named "projects" pre-existed from another app without user_id:
+alter table projects add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table projects add column if not exists name text;
+alter table projects add column if not exists created_at timestamptz not null default now();
+alter table projects add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists idx_projects_user_id on projects(user_id);
 
@@ -109,18 +119,30 @@ create policy "projects_select_own" on projects
 -- ============================================================
 create table if not exists room_uploads (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references projects(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  storage_path text not null,
-  mime_type text not null check (mime_type in ('image/jpeg','image/png','image/webp')),
-  file_size_bytes integer not null check (file_size_bytes > 0 and file_size_bytes <= 10485760),
+  project_id uuid references projects(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  storage_path text,
+  mime_type text,
+  file_size_bytes integer,
   image_width integer,
   image_height integer,
-  status room_upload_status not null default 'uploaded',
+  status room_upload_status default 'uploaded',
   error_message text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table room_uploads add column if not exists project_id uuid references projects(id) on delete cascade;
+alter table room_uploads add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table room_uploads add column if not exists storage_path text;
+alter table room_uploads add column if not exists mime_type text;
+alter table room_uploads add column if not exists file_size_bytes integer;
+alter table room_uploads add column if not exists image_width integer;
+alter table room_uploads add column if not exists image_height integer;
+alter table room_uploads add column if not exists status room_upload_status default 'uploaded';
+alter table room_uploads add column if not exists error_message text;
+alter table room_uploads add column if not exists created_at timestamptz not null default now();
+alter table room_uploads add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists idx_room_uploads_project_id on room_uploads(project_id);
 create index if not exists idx_room_uploads_user_id on room_uploads(user_id);
@@ -142,27 +164,48 @@ create policy "room_uploads_select_own" on room_uploads
 -- ============================================================
 create table if not exists room_analyses (
   id uuid primary key default gen_random_uuid(),
-  room_upload_id uuid not null unique references room_uploads(id) on delete cascade,
-  room_type room_type not null,
-  confidence numeric(3,2) not null check (confidence >= 0 and confidence <= 1),
-  construction_state construction_state not null,
-  floor_visible boolean not null default false,
+  room_upload_id uuid references room_uploads(id) on delete cascade,
+  room_type room_type,
+  confidence numeric(3,2),
+  construction_state construction_state,
+  floor_visible boolean default false,
   floor_current_material text,
   floor_condition_notes text,
-  wall_visible boolean not null default false,
+  wall_visible boolean default false,
   wall_current_material text,
   wall_condition_notes text,
-  recommended_surfaces surface_type[] not null default '{}',
-  door_count integer not null default 0 check (door_count >= 0),
-  window_count integer not null default 0 check (window_count >= 0),
-  fixtures text[] not null default '{}',
-  lighting text check (lighting in ('natural','artificial','mixed','low_light')),
-  perspective text check (perspective in ('straight_on','angled','wide_angle')),
-  warnings text[] not null default '{}',
-  raw_ai_response jsonb not null,
-  analysis_model text not null,
+  recommended_surfaces surface_type[] default '{}',
+  door_count integer default 0,
+  window_count integer default 0,
+  fixtures text[] default '{}',
+  lighting text,
+  perspective text,
+  warnings text[] default '{}',
+  raw_ai_response jsonb,
+  analysis_model text,
   created_at timestamptz not null default now()
 );
+
+alter table room_analyses add column if not exists room_upload_id uuid references room_uploads(id) on delete cascade;
+alter table room_analyses add column if not exists room_type room_type;
+alter table room_analyses add column if not exists confidence numeric(3,2);
+alter table room_analyses add column if not exists construction_state construction_state;
+alter table room_analyses add column if not exists floor_visible boolean default false;
+alter table room_analyses add column if not exists floor_current_material text;
+alter table room_analyses add column if not exists floor_condition_notes text;
+alter table room_analyses add column if not exists wall_visible boolean default false;
+alter table room_analyses add column if not exists wall_current_material text;
+alter table room_analyses add column if not exists wall_condition_notes text;
+alter table room_analyses add column if not exists recommended_surfaces surface_type[] default '{}';
+alter table room_analyses add column if not exists door_count integer default 0;
+alter table room_analyses add column if not exists window_count integer default 0;
+alter table room_analyses add column if not exists fixtures text[] default '{}';
+alter table room_analyses add column if not exists lighting text;
+alter table room_analyses add column if not exists perspective text;
+alter table room_analyses add column if not exists warnings text[] default '{}';
+alter table room_analyses add column if not exists raw_ai_response jsonb;
+alter table room_analyses add column if not exists analysis_model text;
+alter table room_analyses add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_room_analyses_room_upload_id on room_analyses(room_upload_id);
 
@@ -183,26 +226,47 @@ create policy "room_analyses_select_own" on room_analyses
 create table if not exists tiles (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references auth.users(id) on delete cascade,
-  sku text not null,
-  name text not null,
+  sku text,
+  name text,
   brand text,
-  category tile_category not null,
+  category tile_category,
   material text,
   finish text,
   color_family text,
   size_mm text,
-  price_per_sqft numeric(10,2) check (price_per_sqft >= 0),
-  currency text not null default 'INR',
-  storage_path text not null,
-  suitable_rooms room_type[] not null default '{}',
-  is_active boolean not null default true,
-  description text check (description is null or char_length(description) <= 2000),
+  price_per_sqft numeric(10,2),
+  currency text default 'INR',
+  storage_path text,
+  suitable_rooms room_type[] default '{}',
+  is_active boolean default true,
+  description text,
   tile_type text,
   pattern text,
-  stock_status text not null default 'in_stock' check (stock_status in ('in_stock', 'low_stock', 'out_of_stock', 'made_to_order')),
+  stock_status text default 'in_stock',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table tiles add column if not exists owner_id uuid references auth.users(id) on delete cascade;
+alter table tiles add column if not exists sku text;
+alter table tiles add column if not exists name text;
+alter table tiles add column if not exists brand text;
+alter table tiles add column if not exists category tile_category;
+alter table tiles add column if not exists material text;
+alter table tiles add column if not exists finish text;
+alter table tiles add column if not exists color_family text;
+alter table tiles add column if not exists size_mm text;
+alter table tiles add column if not exists price_per_sqft numeric(10,2);
+alter table tiles add column if not exists currency text default 'INR';
+alter table tiles add column if not exists storage_path text;
+alter table tiles add column if not exists suitable_rooms room_type[] default '{}';
+alter table tiles add column if not exists is_active boolean default true;
+alter table tiles add column if not exists description text;
+alter table tiles add column if not exists tile_type text;
+alter table tiles add column if not exists pattern text;
+alter table tiles add column if not exists stock_status text default 'in_stock';
+alter table tiles add column if not exists created_at timestamptz not null default now();
+alter table tiles add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists idx_tiles_owner_id on tiles(owner_id);
 create unique index if not exists idx_tiles_owner_sku on tiles(owner_id, sku);
@@ -226,14 +290,20 @@ create policy "tiles_select_own" on tiles
 -- ============================================================
 create table if not exists tile_recommendations (
   id uuid primary key default gen_random_uuid(),
-  room_analysis_id uuid not null references room_analyses(id) on delete cascade,
-  tile_id uuid not null references tiles(id) on delete restrict,
-  surface surface_type not null,
-  rank integer not null check (rank >= 1),
-  reason text not null default '',
-  created_at timestamptz not null default now(),
-  unique (room_analysis_id, tile_id, surface)
+  room_analysis_id uuid references room_analyses(id) on delete cascade,
+  tile_id uuid references tiles(id) on delete restrict,
+  surface surface_type,
+  rank integer,
+  reason text default '',
+  created_at timestamptz not null default now()
 );
+
+alter table tile_recommendations add column if not exists room_analysis_id uuid references room_analyses(id) on delete cascade;
+alter table tile_recommendations add column if not exists tile_id uuid references tiles(id) on delete restrict;
+alter table tile_recommendations add column if not exists surface surface_type;
+alter table tile_recommendations add column if not exists rank integer;
+alter table tile_recommendations add column if not exists reason text default '';
+alter table tile_recommendations add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_tile_recs_room_analysis_id on tile_recommendations(room_analysis_id);
 create index if not exists idx_tile_recs_tile_id on tile_recommendations(tile_id);
@@ -255,22 +325,38 @@ create policy "tile_recs_select_own" on tile_recommendations
 -- ============================================================
 create table if not exists visualizations (
   id uuid primary key default gen_random_uuid(),
-  room_upload_id uuid not null references room_uploads(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  tile_id uuid not null references tiles(id) on delete restrict,
-  applied_surfaces surface_type[] not null check (array_length(applied_surfaces, 1) > 0),
-  status visualization_status not null default 'pending',
+  room_upload_id uuid references room_uploads(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  tile_id uuid references tiles(id) on delete restrict,
+  applied_surfaces surface_type[],
+  status visualization_status default 'pending',
   result_storage_path text,
   error_message text,
-  requirements text check (requirements is null or char_length(requirements) <= 2000),
-  room_type text check (room_type is null or room_type in ('kitchen','bedroom','bathroom','living_room','dining_room','balcony','corridor','other')),
-  credits_charged integer not null default 0 check (credits_charged >= 0),
-  is_public boolean not null default false,
+  requirements text,
+  room_type text,
+  credits_charged integer default 0,
+  is_public boolean default false,
   design jsonb,
   design_hash text,
   created_at timestamptz not null default now(),
   completed_at timestamptz
 );
+
+alter table visualizations add column if not exists room_upload_id uuid references room_uploads(id) on delete cascade;
+alter table visualizations add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table visualizations add column if not exists tile_id uuid references tiles(id) on delete restrict;
+alter table visualizations add column if not exists applied_surfaces surface_type[];
+alter table visualizations add column if not exists status visualization_status default 'pending';
+alter table visualizations add column if not exists result_storage_path text;
+alter table visualizations add column if not exists error_message text;
+alter table visualizations add column if not exists requirements text;
+alter table visualizations add column if not exists room_type text;
+alter table visualizations add column if not exists credits_charged integer default 0;
+alter table visualizations add column if not exists is_public boolean default false;
+alter table visualizations add column if not exists design jsonb;
+alter table visualizations add column if not exists design_hash text;
+alter table visualizations add column if not exists created_at timestamptz not null default now();
+alter table visualizations add column if not exists completed_at timestamptz;
 
 create index if not exists idx_visualizations_room_upload_id on visualizations(room_upload_id);
 create index if not exists idx_visualizations_user_id on visualizations(user_id);
@@ -306,17 +392,26 @@ alter table visualization_tiles enable row level security;
 -- ============================================================
 create table if not exists generation_jobs (
   id uuid primary key default gen_random_uuid(),
-  visualization_id uuid not null references visualizations(id) on delete cascade,
-  status job_status not null default 'pending',
-  attempt_number integer not null default 1 check (attempt_number >= 1),
+  visualization_id uuid references visualizations(id) on delete cascade,
+  status job_status default 'pending',
+  attempt_number integer default 1,
   generation_model text,
   request_payload jsonb,
   error_message text,
   started_at timestamptz,
   completed_at timestamptz,
-  created_at timestamptz not null default now(),
-  unique (visualization_id, attempt_number)
+  created_at timestamptz not null default now()
 );
+
+alter table generation_jobs add column if not exists visualization_id uuid references visualizations(id) on delete cascade;
+alter table generation_jobs add column if not exists status job_status default 'pending';
+alter table generation_jobs add column if not exists attempt_number integer default 1;
+alter table generation_jobs add column if not exists generation_model text;
+alter table generation_jobs add column if not exists request_payload jsonb;
+alter table generation_jobs add column if not exists error_message text;
+alter table generation_jobs add column if not exists started_at timestamptz;
+alter table generation_jobs add column if not exists completed_at timestamptz;
+alter table generation_jobs add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_generation_jobs_visualization_id_status
   on generation_jobs(visualization_id, status);
@@ -342,6 +437,10 @@ create table if not exists credit_accounts (
   updated_at timestamptz not null default now()
 );
 
+alter table credit_accounts add column if not exists balance integer not null default 0;
+alter table credit_accounts add column if not exists created_at timestamptz not null default now();
+alter table credit_accounts add column if not exists updated_at timestamptz not null default now();
+
 alter table credit_accounts enable row level security;
 
 drop policy if exists "credit_accounts_select_own" on credit_accounts;
@@ -353,18 +452,30 @@ create policy "credit_accounts_select_own" on credit_accounts
 -- ============================================================
 create table if not exists credit_transactions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  type text not null check (type in ('purchase', 'generation_hold', 'generation_release', 'adjustment', 'promotional', 'refund')),
-  amount integer not null check (amount <> 0),
-  balance_after integer not null check (balance_after >= 0),
-  status text not null default 'posted' check (status in ('posted', 'held', 'committed', 'released')),
+  user_id uuid references auth.users(id) on delete cascade,
+  type text,
+  amount integer,
+  balance_after integer,
+  status text default 'posted',
   reference_type text,
   reference_id text,
-  description text not null,
-  metadata jsonb not null default '{}'::jsonb,
-  idempotency_key text not null unique,
+  description text,
+  metadata jsonb default '{}'::jsonb,
+  idempotency_key text unique,
   created_at timestamptz not null default now()
 );
+
+alter table credit_transactions add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table credit_transactions add column if not exists type text;
+alter table credit_transactions add column if not exists amount integer;
+alter table credit_transactions add column if not exists balance_after integer;
+alter table credit_transactions add column if not exists status text default 'posted';
+alter table credit_transactions add column if not exists reference_type text;
+alter table credit_transactions add column if not exists reference_id text;
+alter table credit_transactions add column if not exists description text;
+alter table credit_transactions add column if not exists metadata jsonb default '{}'::jsonb;
+alter table credit_transactions add column if not exists idempotency_key text;
+alter table credit_transactions add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_credit_tx_user_created on credit_transactions (user_id, created_at desc);
 create index if not exists idx_credit_tx_reference on credit_transactions (reference_type, reference_id);
@@ -381,16 +492,26 @@ create policy "credit_transactions_select_own" on credit_transactions
 -- ============================================================
 create table if not exists credit_packages (
   id text primary key,
-  name text not null,
+  name text,
   description text,
-  credits integer not null check (credits > 0),
-  bonus_credits integer not null default 0 check (bonus_credits >= 0),
-  price_paise integer not null check (price_paise > 0),
-  currency text not null default 'INR',
-  is_active boolean not null default true,
-  sort_order integer not null default 0,
+  credits integer,
+  bonus_credits integer default 0,
+  price_paise integer,
+  currency text default 'INR',
+  is_active boolean default true,
+  sort_order integer default 0,
   created_at timestamptz not null default now()
 );
+
+alter table credit_packages add column if not exists name text;
+alter table credit_packages add column if not exists description text;
+alter table credit_packages add column if not exists credits integer;
+alter table credit_packages add column if not exists bonus_credits integer default 0;
+alter table credit_packages add column if not exists price_paise integer;
+alter table credit_packages add column if not exists currency text default 'INR';
+alter table credit_packages add column if not exists is_active boolean default true;
+alter table credit_packages add column if not exists sort_order integer default 0;
+alter table credit_packages add column if not exists created_at timestamptz not null default now();
 
 alter table credit_packages enable row level security;
 
@@ -403,28 +524,48 @@ insert into credit_packages (id, name, description, credits, bonus_credits, pric
   ('starter',      'Starter',      'Try the visualizer on a few rooms.',            100,    0,  49900, 1),
   ('professional', 'Professional', 'For a working showroom with regular customers.', 300,   30, 129900, 2),
   ('business',     'Business',     'High-volume showroom or multiple staff.',       1000,  150, 399900, 3)
-on conflict (id) do nothing;
+on conflict (id) do update set
+  name = excluded.name,
+  description = excluded.description,
+  credits = excluded.credits,
+  bonus_credits = excluded.bonus_credits,
+  price_paise = excluded.price_paise;
 
 -- ============================================================
 -- 13. payments
 -- ============================================================
 create table if not exists payments (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  provider text not null default 'razorpay',
-  provider_order_id text not null unique,
-  provider_payment_id text unique,
-  package_id text not null,
-  package_name text not null,
-  amount_paise integer not null check (amount_paise > 0),
-  currency text not null default 'INR',
-  credits integer not null check (credits > 0),
-  status text not null default 'created' check (status in ('created', 'paid', 'failed', 'refunded')),
+  user_id uuid references auth.users(id) on delete cascade,
+  provider text default 'razorpay',
+  provider_order_id text unique,
+  provider_payment_id text,
+  package_id text,
+  package_name text,
+  amount_paise integer,
+  currency text default 'INR',
+  credits integer,
+  status text default 'created',
   failure_reason text,
   created_at timestamptz not null default now(),
   paid_at timestamptz,
   updated_at timestamptz not null default now()
 );
+
+alter table payments add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table payments add column if not exists provider text default 'razorpay';
+alter table payments add column if not exists provider_order_id text;
+alter table payments add column if not exists provider_payment_id text;
+alter table payments add column if not exists package_id text;
+alter table payments add column if not exists package_name text;
+alter table payments add column if not exists amount_paise integer;
+alter table payments add column if not exists currency text default 'INR';
+alter table payments add column if not exists credits integer;
+alter table payments add column if not exists status text default 'created';
+alter table payments add column if not exists failure_reason text;
+alter table payments add column if not exists created_at timestamptz not null default now();
+alter table payments add column if not exists paid_at timestamptz;
+alter table payments add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists idx_payments_user_created on payments (user_id, created_at desc);
 
@@ -452,7 +593,6 @@ alter table payment_events enable row level security;
 -- FUNCTIONS & PROCEDURES
 -- ============================================================
 
--- Ledger immutability trigger function
 create or replace function credit_tx_guard() returns trigger
 language plpgsql
 set search_path = public
@@ -474,7 +614,6 @@ create trigger trg_credit_tx_guard
   before update on credit_transactions
   for each row execute function credit_tx_guard();
 
--- Atomic signed balance change
 create or replace function credit_apply(
   p_user uuid, p_amount integer, p_type text, p_desc text,
   p_ref_type text, p_ref_id text, p_meta jsonb, p_idem text, p_status text default 'posted'
@@ -507,7 +646,6 @@ begin
   return jsonb_build_object('transaction_id', tx.id, 'balance', acct.balance, 'duplicate', false, 'status', tx.status);
 end $$;
 
--- Reserve credits
 create or replace function credit_hold(p_user uuid, p_amount integer, p_ref_id text, p_idem text, p_meta jsonb default '{}'::jsonb) returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -516,7 +654,6 @@ begin
   return credit_apply(p_user, -p_amount, 'generation_hold', 'Visualization generation', 'visualization', p_ref_id, p_meta, p_idem, 'held');
 end $$;
 
--- Finalize reserved credits
 create or replace function credit_commit(p_hold_id uuid) returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -529,7 +666,6 @@ begin
   return jsonb_build_object('hold_id', h.id, 'credits', -h.amount, 'status', 'committed');
 end $$;
 
--- Release reserved credits on failure
 create or replace function credit_release(p_hold_id uuid, p_reason text default 'Generation did not complete') returns jsonb
 language plpgsql security definer set search_path = public
 as $$
@@ -547,7 +683,6 @@ begin
   return jsonb_build_object('hold_id', h.id, 'released', true, 'credits', -h.amount, 'balance', r->'balance');
 end $$;
 
--- Release stale holds
 create or replace function credit_release_stale_holds(p_user uuid default null, p_older_than interval default interval '15 minutes') returns integer
 language plpgsql security definer set search_path = public
 as $$
@@ -565,7 +700,6 @@ begin
   return n;
 end $$;
 
--- Mark payment paid and credit user
 create or replace function payment_apply_paid(
   p_order_id text, p_payment_id text, p_amount_paise integer, p_currency text
 ) returns jsonb
@@ -793,7 +927,3 @@ begin
     alter publication supabase_realtime add table credit_accounts;
   end if;
 end $$;
-
--- ============================================================
--- DONE! All 14 tables, buckets, functions and policies ready.
--- ============================================================
