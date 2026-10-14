@@ -10,6 +10,7 @@ interface AuthContextValue {
   signUpWithPassword: (
     email: string,
     password: string,
+    fullName?: string,
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   resendConfirmation: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -35,12 +36,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signInWithPassword(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const cleanEmail = email.trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
     return { error: error?.message ?? null };
   }
 
-  async function signUpWithPassword(email: string, password: string) {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  async function signUpWithPassword(email: string, password: string, fullName?: string) {
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: fullName?.trim() ? { data: { full_name: fullName.trim() } } : undefined,
+    });
     if (error) return { error: error.message, needsConfirmation: false };
     // An existing confirmed email returns a user with no identities (Supabase hides "already registered").
     if (data.user && data.user.identities && data.user.identities.length === 0) {
@@ -51,7 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resendConfirmation(email: string) {
-    const { error } = await supabase.auth.resend({ type: "signup", email });
+    const cleanEmail = email.trim().toLowerCase();
+    const { error } = await supabase.auth.resend({ type: "signup", email: cleanEmail });
     return { error: error?.message ?? null };
   }
 

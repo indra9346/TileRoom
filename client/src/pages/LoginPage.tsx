@@ -17,15 +17,38 @@ const perks = [
   "Compare 3 tiles in your real space to choose with confidence",
 ];
 
+function EyeIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
+function EyeOffIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+    </svg>
+  );
+}
+
 export function LoginPage() {
   const { user, signInWithPassword, signUpWithPassword, resendConfirmation } = useAuth();
   const navigate = useNavigate();
   const location = useLocation() as { state?: { from?: { pathname: string } } };
 
   const [params] = useSearchParams();
-  const [mode, setMode] = useState<"signin" | "signup">(SIGNUP_ENABLED && params.get("mode") === "signup" ? "signup" : "signin");
+  const [mode, setMode] = useState<"signin" | "signup">(
+    SIGNUP_ENABLED && params.get("mode") === "signup" ? "signup" : "signin"
+  );
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
@@ -40,19 +63,34 @@ export function LoginPage() {
     setError(null);
     setInfo(null);
     setAwaitingConfirmation(false);
+
+    if (mode === "signup") {
+      if (password.length < 6) {
+        setError("Password must be at least 6 characters long.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match. Please verify your password.");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       if (mode === "signin") {
         const { error: err } = await signInWithPassword(email, password);
-        if (err) setError(err);
-        else navigate(destination);
+        if (err) {
+          setError(err);
+        } else {
+          navigate(destination);
+        }
       } else {
-        const { error: err, needsConfirmation } = await signUpWithPassword(email, password);
+        const { error: err, needsConfirmation } = await signUpWithPassword(email, password, fullName);
         if (err) {
           setError(err);
         } else if (needsConfirmation) {
           setAwaitingConfirmation(true);
-          setInfo("Check your email for a confirmation link before signing in.");
+          setInfo("Account created! Check your email for a confirmation link to sign in.");
         } else {
           navigate(destination);
         }
@@ -68,8 +106,11 @@ export function LoginPage() {
     if (!email) return;
     const { error: err } = await resendConfirmation(email);
     if (err) setError(err);
-    else setInfo(`Confirmation email re-sent to ${email}.`);
+    else setInfo(`Confirmation email re-sent to ${email.trim()}.`);
   }
+
+  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
+  const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
   return (
     <div className="grid min-h-[calc(100vh-4rem)] lg:grid-cols-2">
@@ -77,7 +118,9 @@ export function LoginPage() {
         <TileScene scene="terrazzo" className="absolute inset-0 h-full w-full" />
         <div className="relative flex h-full flex-col justify-between p-10 text-stone-900">
           <div className="flex items-center">
-            <div className="rounded-2xl bg-white/85 px-4 py-3 shadow-lg backdrop-blur-md"><SDSLogo size="lg" variant="dark" subtitle="Virtual Trial Room" /></div>
+            <div className="rounded-2xl bg-white/85 px-4 py-3 shadow-lg backdrop-blur-md">
+              <SDSLogo size="lg" variant="dark" subtitle="Virtual Trial Room" />
+            </div>
           </div>
 
           <div className="mb-4 rounded-2xl bg-white/85 p-7 shadow-lg backdrop-blur-md">
@@ -114,46 +157,164 @@ export function LoginPage() {
             <SDSLogo size="md" variant="dark" subtitle="Virtual Trial Room" />
           </div>
 
-          <h1 className="font-display text-3xl font-bold text-stone-900 sm:text-4xl">{mode === "signin" ? "Welcome Back" : "Create Your Account"}</h1>
+          {/* Mode Switcher Tabs */}
+          {SIGNUP_ENABLED && (
+            <div className="mb-6 grid grid-cols-2 rounded-xl bg-stone-100 p-1 border border-stone-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError(null);
+                  setInfo(null);
+                  setAwaitingConfirmation(false);
+                }}
+                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
+                  mode === "signin"
+                    ? "bg-white text-stone-900 shadow-sm"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setError(null);
+                  setInfo(null);
+                  setAwaitingConfirmation(false);
+                }}
+                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
+                  mode === "signup"
+                    ? "bg-white text-stone-900 shadow-sm"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+
+          <h1 className="font-display text-3xl font-bold text-stone-900 sm:text-4xl">
+            {mode === "signin" ? "Welcome Back" : "Create Your Account"}
+          </h1>
           <p className="mt-2 text-stone-600">
-            {mode === "signin" ? "Sign in to continue your virtual trial projects." : "Save room captures and revisit your virtual previews anytime."}
+            {mode === "signin"
+              ? "Sign in to continue your virtual trial projects."
+              : "Register your showroom account to start rendering rooms with real tiles."}
           </p>
 
-          <form className="mt-8 space-y-5" onSubmit={onSubmit}>
+          <form className="mt-8 space-y-4" onSubmit={onSubmit}>
+            {mode === "signup" && (
+              <div>
+                <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-stone-700">
+                  Full Name / Showroom Name
+                </label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="e.g. Indra Tiles & Studio"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+            )}
+
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
                 Email Address
               </label>
-              <Input id="email" type="email" required autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
+
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-stone-700">
                 Password
               </label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                placeholder={mode === "signup" ? "Choose a password (6+ characters)" : "Your password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  placeholder={mode === "signup" ? "Create a password (min. 6 characters)" : "Your password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition focus:outline-none"
+                >
+                  {showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
 
+            {mode === "signup" && (
+              <div>
+                <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-stone-700">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    placeholder="Repeat your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition focus:outline-none"
+                  >
+                    {showConfirmPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                  </button>
+                </div>
+                {passwordsMatch && (
+                  <p className="mt-1 text-xs text-emerald-600 font-medium">✓ Passwords match</p>
+                )}
+                {passwordsMismatch && (
+                  <p className="mt-1 text-xs text-amber-600 font-medium">Passwords do not match yet</p>
+                )}
+              </div>
+            )}
+
             {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700 border border-red-200">
                 {error}
               </p>
             )}
             {info && (
-              <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+              <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 border border-emerald-200">
                 {info}
               </p>
             )}
             {awaitingConfirmation && email && (
-              <button type="button" onClick={onResend} className="text-sm font-medium text-clay-700 underline underline-offset-2">
+              <button
+                type="button"
+                onClick={onResend}
+                className="text-sm font-medium text-clay-700 underline underline-offset-2 hover:text-clay-900"
+              >
                 Resend confirmation email
               </button>
             )}
