@@ -49,6 +49,7 @@ export function TilesPage() {
   const [analysis, setLocalAnalysis] = useState<RoomAnalysis | null>(cachedAnalysis);
   const [analysisLoading, setAnalysisLoading] = useState(!cachedAnalysis);
   const [roomImage, setRoomImage] = useState<string | null>(null);
+  const [roomImgError, setRoomImgError] = useState(false);
 
   const [areas, setAreas] = useState<DraftArea[] | null>(null);
   const [templateId, setTemplateId] = useState<TemplateId>("free");
@@ -116,6 +117,7 @@ export function TilesPage() {
   // The customer's photo stays on screen so the owner can see which wall is which while designing.
   useEffect(() => {
     if (!roomId) return;
+    setRoomImgError(false);
     getRoom(roomId)
       .then((room) => setRoomImage(room.imageUrl ?? null))
       .catch(() => setRoomImage(null));
@@ -293,10 +295,29 @@ export function TilesPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]">
           <aside className="lg:sticky lg:top-24 lg:self-start">
             <Card className="overflow-hidden">
-              {roomImage ? (
-                <img src={roomImage} alt="The customer's room photo you are designing" className="max-h-72 w-full object-cover lg:max-h-none" />
+              {roomImage && !roomImgError ? (
+                <img
+                  src={roomImage}
+                  alt="The customer's room photo you are designing"
+                  className="max-h-72 w-full object-cover lg:max-h-none"
+                  onError={() => setRoomImgError(true)}
+                />
               ) : (
-                <div className="flex h-40 items-center justify-center bg-stone-100 text-sm text-stone-400">Room photo</div>
+                <div className="flex h-40 flex-col items-center justify-center bg-stone-100 p-4 text-center text-sm text-stone-500">
+                  <span className="font-medium text-stone-700">Room photo</span>
+                  {roomImgError && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRoomImgError(false);
+                        getRoom(roomId!).then((r) => setRoomImage(r.imageUrl ?? null)).catch(() => setRoomImgError(true));
+                      }}
+                      className="mt-2 text-xs font-semibold text-amber-700 hover:text-amber-800 underline"
+                    >
+                      Reload photo
+                    </button>
+                  )}
+                </div>
               )}
               <CardBody className="space-y-2 text-sm text-stone-600">
                 <p className="font-medium text-stone-900">Your room</p>

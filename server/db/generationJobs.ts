@@ -21,7 +21,7 @@ export interface GenerationJobRow {
 interface RawJobRow {
   id: string;
   visualization_id: string;
-  status: JobStatus;
+  status: string;
   attempt_number: number;
   generation_model: string | null;
   error_message: string | null;
@@ -30,11 +30,18 @@ interface RawJobRow {
   created_at: string;
 }
 
+function normalizeJobStatus(status: string): JobStatus {
+  if (status === "processing" || status === "active") return "processing";
+  if (status === "completed" || status === "closed") return "completed";
+  if (status === "failed" || status === "rejected") return "failed";
+  return "pending";
+}
+
 function mapRow(row: RawJobRow): GenerationJobRow {
   return {
     id: row.id,
     visualizationId: row.visualization_id,
-    status: row.status,
+    status: normalizeJobStatus(row.status),
     attemptNumber: row.attempt_number,
     generationModel: row.generation_model,
     errorMessage: row.error_message,
@@ -84,6 +91,13 @@ export async function getLatestJobForVisualization(visualizationId: string): Pro
  * MAX_GENERATION_ATTEMPTS in application code (no schema change).
  */
 export async function createNextGenerationJob(visualizationId: string): Promise<GenerationJobRow> {
+  // If a previous job attempt was created but never started (e.g. earlier crash before processing),
+  // reuse it instead of consuming another attempt count.
+  const latest = await getLatestJobForVisualization(visualizationId);
+  if (latest && latest.status === "pending" && !latest.startedAt) {
+    return latest;
+  }
+
   const existingCount = await countJobsForVisualization(visualizationId);
   if (existingCount >= MAX_GENERATION_ATTEMPTS) {
     throw Errors.retryLimitExceeded(MAX_GENERATION_ATTEMPTS);
@@ -99,8 +113,8 @@ export async function createNextGenerationJob(visualizationId: string): Promise<
   if (error || !data) {
     if (error?.code === "23505") {
       // Concurrent request already created this attempt number; surface the real current state.
-      const latest = await getLatestJobForVisualization(visualizationId);
-      if (latest) return latest;
+      const current = await getLatestJobForVisualization(visualizationId);
+      if (current) return current;
     }
     apiLogger.error("createNextGenerationJob failed", { operation: "createNextGenerationJob", errorCategory: error?.code });
     throw Errors.internal("Failed to create generation job.");
@@ -109,41 +123,90 @@ export async function createNextGenerationJob(visualizationId: string): Promise<
   return mapRow(data);
 }
 
-export async function markJobProcessing(jobId: string, generationModel?: string): Promise<void> {
+/**
+ * Updates generation_jobs with schema-adaptive fallback so differences in the DB enum
+ * (e.g., standard 'processing'/'completed'/'failed' vs legacy 'active'/'closed'/'rejected')
+ * or transient database errors never abort user image generation.
+ */
+async function updateJobSafely(
+  jobId: string,
+  preferredStatus: JobStatus,
+  fallbackStatus: string,
+  fields: Record<string, unknown>,
+  operationName: string
+): Promise<void> {
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase
+
+  // 1. Try preferred status value
+  let { error } = await supabase
     .from("generation_jobs")
-    .update({ status: "processing", started_at: new Date().toISOString(), generation_model: generationModel ?? null })
+    .update({ ...fields, status: preferredStatus })
     .eq("id", jobId);
 
-  if (error) {
-    apiLogger.error("markJobProcessing failed", { operation: "markJobProcessing", jobId, errorCategory: error.code });
-    throw Errors.internal("Failed to update generation job status.");
+  // 2. If rejected by Postgres enum check (22P02), try the compatible fallback
+  if (error && error.code === "22P02") {
+    const fallbackRes = await supabase
+      .from("generation_jobs")
+      .update({ ...fields, status: fallbackStatus })
+      .eq("id", jobId);
+
+    if (fallbackRes.error && fallbackRes.error.code === "22P02") {
+      // 3. If neither enum value is supported, update timestamps and metadata without status
+      const noStatusRes = await supabase
+        .from("generation_jobs")
+        .update(fields)
+        .eq("id", jobId);
+      error = noStatusRes.error;
+    } else {
+      error = fallbackRes.error;
+    }
   }
+
+  if (error) {
+    apiLogger.warn(`${operationName} failed to update generation_jobs row`, {
+      operation: operationName,
+      jobId,
+      errorCategory: error.code,
+      message: error.message,
+    });
+    // Non-fatal: an audit log failure must never fail the user's visualization generation
+  }
+}
+
+export async function markJobProcessing(jobId: string, generationModel?: string): Promise<void> {
+  await updateJobSafely(
+    jobId,
+    "processing",
+    "active",
+    {
+      started_at: new Date().toISOString(),
+      generation_model: generationModel ?? null,
+    },
+    "markJobProcessing"
+  );
 }
 
 export async function markJobCompleted(jobId: string): Promise<void> {
-  const supabase = getSupabaseServerClient();
-  const { error } = await supabase
-    .from("generation_jobs")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
-    .eq("id", jobId);
-
-  if (error) {
-    apiLogger.error("markJobCompleted failed", { operation: "markJobCompleted", jobId, errorCategory: error.code });
-    throw Errors.internal("Failed to update generation job status.");
-  }
+  await updateJobSafely(
+    jobId,
+    "completed",
+    "closed",
+    {
+      completed_at: new Date().toISOString(),
+    },
+    "markJobCompleted"
+  );
 }
 
 export async function markJobFailed(jobId: string, safeErrorMessage: string): Promise<void> {
-  const supabase = getSupabaseServerClient();
-  const { error } = await supabase
-    .from("generation_jobs")
-    .update({ status: "failed", completed_at: new Date().toISOString(), error_message: safeErrorMessage })
-    .eq("id", jobId);
-
-  if (error) {
-    apiLogger.error("markJobFailed failed", { operation: "markJobFailed", jobId, errorCategory: error.code });
-    // Do not throw further here — we are already in a failure path; throwing would mask the original error.
-  }
+  await updateJobSafely(
+    jobId,
+    "failed",
+    "rejected",
+    {
+      completed_at: new Date().toISOString(),
+      error_message: safeErrorMessage,
+    },
+    "markJobFailed"
+  );
 }

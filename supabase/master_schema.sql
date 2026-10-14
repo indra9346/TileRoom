@@ -48,6 +48,10 @@ do $$ begin
   create type job_status as enum ('pending', 'processing', 'completed', 'failed');
 exception when duplicate_object then null; end $$;
 
+alter type job_status add value if not exists 'processing';
+alter type job_status add value if not exists 'completed';
+alter type job_status add value if not exists 'failed';
+
 -- ---------- UPDATED_AT TRIGGER HELPER ----------
 create or replace function set_updated_at()
 returns trigger as $$

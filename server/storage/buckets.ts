@@ -4,7 +4,7 @@ export const BUCKETS = {
   generatedVisualizations: "generated-visualizations",
 } as const;
 
-export const SIGNED_URL_TTL_SECONDS = 300; // 5 minutes — short-lived by design
+export const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour — provides stable viewing during active design sessions
 
 export function extensionForMimeType(mimeType: string): string {
   switch (mimeType) {
