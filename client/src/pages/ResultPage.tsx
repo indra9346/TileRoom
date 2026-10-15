@@ -255,7 +255,7 @@ export function ResultPage() {
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
           <BeforeAfterSlider
-            beforeSrc={room?.imageUrl ?? undefined}
+            beforeSrc={room?.imageUrl ?? visualization.roomImageUrl ?? undefined}
             afterSrc={visualization.resultImageUrl}
             beforeAlt="Original room before visualization"
             afterAlt="Room finished with the selected tile"

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { TilePattern } from "@/components/ui/TilePattern";
 import { DoorDivider } from "@/components/ui/DoorDivider";
+import { PublicShowcase } from "@/components/home/PublicShowcase";
 import { EASE_IN, EASE_OUT, Reveal, hoverLift, revealViewport, scaleIn, staggerContainer, staggerItem } from "@/components/ui/motion";
 
 /** Hero copy card: the card rises, then its lines settle in one after another. */
@@ -572,6 +573,9 @@ export function LandingPage() {
       </section>
 
       <DoorDivider label="The Living Hall" />
+
+      {/* Real public results + the public tile catalog (both visible signed out; each hides when empty). */}
+      <PublicShowcase />
 
       {/* Real tiles on real surfaces */}
       <section className="container-page py-16 sm:py-20">

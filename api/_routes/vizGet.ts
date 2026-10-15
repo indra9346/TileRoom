@@ -7,6 +7,7 @@ import { getVisualizationById, deleteOwnedVisualization } from "../../server/db/
 import { removeOwnedImagesQuietly } from "../../server/storage/cleanup.js";
 import { getLatestJobForVisualization, isJobStale, markJobFailed } from "../../server/db/generationJobs.js";
 import { updateVisualizationStatus } from "../../server/db/visualizations.js";
+import { verifyRoomOwnership } from "../../server/db/rooms.js";
 import { getTileById } from "../../server/db/tiles.js";
 import { createSignedUrl } from "../../server/storage/imageStorage.js";
 import { BUCKETS } from "../../server/storage/buckets.js";
@@ -65,6 +66,10 @@ export default createHandler({ methods: ["GET", "DELETE"], operation: "getVisual
   const resultImageUrl = visualization.resultStoragePath
     ? await createSignedUrl(BUCKETS.generatedVisualizations, visualization.resultStoragePath, visualization.userId)
     : null;
+  // A public visualization publishes its before/after comparison, so a signed-out viewer also gets the
+  // original room photo (signed with the row's own owner id). The owner gets it too.
+  const room = await verifyRoomOwnership(visualization.roomUploadId, visualization.userId).catch(() => null);
+  const roomImageUrl = room ? await createSignedUrl(BUCKETS.roomImages, room.storagePath, visualization.userId).catch(() => null) : null;
 
   res.status(200).json({
     visualization: {
@@ -82,6 +87,7 @@ export default createHandler({ methods: ["GET", "DELETE"], operation: "getVisual
       createdAt: visualization.createdAt,
       completedAt: visualization.completedAt,
       resultImageUrl,
+      roomImageUrl,
       tile,
       design: visualization.design,
       designTiles,

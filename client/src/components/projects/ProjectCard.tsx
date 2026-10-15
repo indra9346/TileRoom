@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import type { Project, RoomUpload } from "@/api/types";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -45,9 +46,12 @@ export function ProjectCard({
               ))}
             </div>
           ) : !rooms || rooms.length === 0 ? (
-            <p className="animate-fade-up rounded-xl border border-dashed border-stone-300 bg-surface-app/60 px-4 py-5 text-center text-sm text-stone-500">
-              No rooms uploaded to this project yet.
-            </p>
+            <div className="animate-fade-up flex flex-col items-center gap-2 rounded-xl border border-dashed border-stone-300 bg-surface-app/60 px-4 py-5 text-center text-sm text-stone-500 sm:flex-row sm:justify-center sm:gap-4">
+              <span>No rooms uploaded to this project yet.</span>
+              <Link to="/upload" className="rounded-lg bg-stone-900 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-stone-800">
+                Upload a room photo
+              </Link>
+            </div>
           ) : (
             <motion.div
               className="grid grid-cols-2 gap-3 sm:grid-cols-4"

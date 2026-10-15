@@ -135,6 +135,8 @@ export interface Visualization {
   createdAt: string;
   completedAt: string | null;
   resultImageUrl: string | null;
+  /** Original room photo; sent for public visualizations (and to their owner) so the before/after works signed out. */
+  roomImageUrl?: string | null;
   attemptNumber?: number;
   latestAttempt?: { attemptNumber: number; status: string } | null;
 }
