@@ -102,21 +102,31 @@ export async function getRecommendationsWithTiles(roomAnalysisId: string): Promi
     });
 }
 
-/** Upserts so repeated recommendation runs for the same analysis don't create duplicate rows. */
+/**
+ * Upserts so repeated recommendation runs for the same analysis don't create duplicate rows.
+ *
+ * The upsert needs the unique index on (room_analysis_id, tile_id, surface). A database built before
+ * that index existed answers 42P10 ("no unique constraint matching ON CONFLICT"); then the analysis's
+ * previous rows are replaced (delete + insert), which gives the same end state without the index.
+ */
 export async function insertRecommendations(roomAnalysisId: string, recommendations: TileRecommendation[]): Promise<void> {
   if (recommendations.length === 0) return;
 
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase.from("tile_recommendations").upsert(
-    recommendations.map((r) => ({
-      room_analysis_id: roomAnalysisId,
-      tile_id: r.tileId,
-      surface: r.surface,
-      rank: r.rank,
-      reason: r.reason,
-    })),
-    { onConflict: "room_analysis_id,tile_id,surface" },
-  );
+  const rows = recommendations.map((r) => ({
+    room_analysis_id: roomAnalysisId,
+    tile_id: r.tileId,
+    surface: r.surface,
+    rank: r.rank,
+    reason: r.reason,
+  }));
+  let { error } = await supabase.from("tile_recommendations").upsert(rows, { onConflict: "room_analysis_id,tile_id,surface" });
+
+  if (error?.code === "42P10") {
+    apiLogger.warn("tile_recommendations unique index missing; replacing rows instead of upserting", { operation: "insertRecommendations" });
+    const removed = await supabase.from("tile_recommendations").delete().eq("room_analysis_id", roomAnalysisId);
+    error = removed.error ?? (await supabase.from("tile_recommendations").insert(rows)).error;
+  }
 
   if (error) {
     apiLogger.error("insertRecommendations failed", { operation: "insertRecommendations", errorCategory: error.code });
