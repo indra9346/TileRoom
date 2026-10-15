@@ -7,8 +7,28 @@ import type { Tile, Visualization } from "@/api/types";
 import { BeforeAfterSlider } from "@/components/visualization/BeforeAfterSlider";
 import { Reveal, revealViewport, staggerContainer, staggerItem } from "@/components/ui/motion";
 import { visualizationSubtitle, visualizationTitle } from "@/lib/history";
+import { PATTERNS, SURFACES } from "@/lib/designPatterns";
 import { getPublicTileImageUrl } from "@/lib/tileImage";
 import { formatTileSize } from "@/lib/fitRecommend";
+
+/**
+ * A visitor-facing caption that names what was actually laid, per area:
+ * "Honey Oak Wood Plank herringbone floor · Nero Marquina Gold wall".
+ * Falls back to the generic title for results made before designs existed.
+ */
+export function showcaseTitle(v: Pick<Visualization, "design" | "designTiles" | "tile" | "appliedSurfaces">): string {
+  const areas = v.design?.areas ?? [];
+  const byId = new Map((v.designTiles ?? []).map((t) => [t.id, t.name]));
+  if (areas.length === 0 || byId.size === 0) return visualizationTitle(v);
+  return areas
+    .map((a) => {
+      const names = a.tileIds.map((id) => byId.get(id)).filter(Boolean).join(" & ");
+      const pattern = a.pattern !== "single" ? `${(PATTERNS[a.pattern]?.label ?? a.pattern).replace(/\s*\(.*\)$/, "").toLowerCase()} ` : "";
+      const surface = (SURFACES[a.surface]?.label ?? a.surface).toLowerCase();
+      return `${names} ${pattern}${surface}`.trim();
+    })
+    .join(" · ");
+}
 
 /** Drag-to-compare thumbnail for the gallery grid (the full zoomable viewer is on the result page). */
 function CompareThumb({ v }: { v: Visualization }) {
@@ -16,7 +36,7 @@ function CompareThumb({ v }: { v: Visualization }) {
   const before = v.roomImageUrl;
   return (
     <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-stone-100">
-      <img src={v.resultImageUrl ?? undefined} alt={`Finished room: ${visualizationTitle(v)}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+      <img src={v.resultImageUrl ?? undefined} alt={`Finished room: ${showcaseTitle(v)}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
       {before && (
         <>
           <img
@@ -105,15 +125,15 @@ export function PublicShowcase() {
                   beforeSrc={featured.roomImageUrl}
                   afterSrc={featured.resultImageUrl ?? ""}
                   beforeAlt="Original room before tiling"
-                  afterAlt={`Finished room: ${visualizationTitle(featured)}`}
+                  afterAlt={`Finished room: ${showcaseTitle(featured)}`}
                   onBeforeError={() => setFeaturedError(true)}
                 />
               ) : (
-                <img src={featured.resultImageUrl ?? undefined} alt={`Finished room: ${visualizationTitle(featured)}`} className="w-full" />
+                <img src={featured.resultImageUrl ?? undefined} alt={`Finished room: ${showcaseTitle(featured)}`} className="w-full" />
               )}
               <div className="flex flex-wrap items-end justify-between gap-3 p-4 sm:p-5">
                 <div className="min-w-0">
-                  <p className="font-display text-lg font-semibold text-stone-900">{visualizationTitle(featured)}</p>
+                  <p className="font-display text-lg font-semibold text-stone-900">{showcaseTitle(featured)}</p>
                   <p className="text-sm text-stone-500">{visualizationSubtitle(featured)}</p>
                   {featured.designTiles && featured.designTiles.length > 0 && <TileChips tiles={featured.designTiles} />}
                 </div>
@@ -137,7 +157,7 @@ export function PublicShowcase() {
                   <CompareThumb v={v} />
                   <div className="px-1 pb-1 pt-3">
                     <Link to={`/result/${v.id}`} className="block truncate font-display font-semibold text-stone-900 hover:text-clay-700">
-                      {visualizationTitle(v)}
+                      {showcaseTitle(v)}
                     </Link>
                     <p className="truncate text-xs text-stone-500">{visualizationSubtitle(v)}</p>
                     {v.designTiles && v.designTiles.length > 0 && <TileChips tiles={v.designTiles} />}
