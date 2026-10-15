@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { AnimatePresence, MotionConfig } from "framer-motion";
+import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/context/AuthContext";
 import { WorkflowProvider } from "@/context/WorkflowContext";
 import { Navbar } from "@/components/layout/Navbar";
@@ -53,7 +53,7 @@ function PageFallback() {
 }
 
 /**
- * Key for the page-transition AnimatePresence. Parameterised routes collapse
+ * Key for the page-enter animation. Parameterised routes collapse
  * to one key per route ("/tiles/:id", "/result/:id"…), so moving between two
  * rooms or two results keeps the same mounted page — exactly as before the
  * transitions were added — while every top-level destination animates.
@@ -65,6 +65,12 @@ function transitionKey(pathname: string): string {
 
 function AppShell() {
   const location = useLocation();
+  const pageKey = transitionKey(location.pathname);
+
+  // A new page starts at the top, like a normal navigation, but never yank the view for an in-page anchor.
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+  }, [pageKey]);
   const [introPhase, setIntroPhase] = useState<IntroPhase>(() => {
     try {
       return sessionStorage.getItem(SPLASH_KEY) === "1" ? "done" : "splash";
@@ -94,16 +100,10 @@ function AppShell() {
           <Navbar />
           <div className="flex-1 relative z-10">
             <ErrorBoundary>
-              <AnimatePresence
-                mode="wait"
-                initial={false}
-                onExitComplete={() => {
-                  // New page starts at the top, like a normal navigation — but
-                  // never yank the view when the URL carries an in-page anchor.
-                  if (!window.location.hash) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-                }}
-              >
-                <PageTransition key={transitionKey(location.pathname)}>
+              {/* Enter-only page animation. Deliberately NOT AnimatePresence mode="wait": an exit that never
+                  completes (redirects during the exit, lazy routes suspending, a hidden tab pausing animation
+                  frames) would leave the old page faded out and the new page never mounted, i.e. a blank screen. */}
+              <PageTransition key={pageKey}>
                   <Suspense fallback={<PageFallback />}>
                     <Routes location={location}>
                       <Route path="/" element={<LandingPage />} />
@@ -154,8 +154,7 @@ function AppShell() {
                       <Route path="/result/:visualizationId" element={<ResultPage />} />
                     </Routes>
                   </Suspense>
-                </PageTransition>
-              </AnimatePresence>
+              </PageTransition>
             </ErrorBoundary>
           </div>
           <Footer />
