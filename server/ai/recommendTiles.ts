@@ -85,6 +85,14 @@ function validateAgainstCandidates(
   return valid;
 }
 
+/** Reason text of a fallback (non-AI) ranking; used to recognise, and never persist, such a ranking. */
+export const FALLBACK_REASON = "Matched by category and room-type compatibility from the catalog.";
+
+/** True when every entry is the deterministic fallback (the AI ranking was unavailable). */
+export function isFallbackRanking(recs: Array<{ reason: string }>): boolean {
+  return recs.length > 0 && recs.every((r) => r.reason === FALLBACK_REASON);
+}
+
 /** Fallback used only if the AI ranking is unavailable/invalid after retry — never blocks the flow. */
 function deterministicRanking(bySurface: Map<SurfaceType, TileCandidate[]>): TileRecommendation[] {
   const out: TileRecommendation[] = [];
@@ -94,7 +102,7 @@ function deterministicRanking(bySurface: Map<SurfaceType, TileCandidate[]>): Til
         tileId: tile.id,
         surface,
         rank: idx + 1,
-        reason: "Matched by category and room-type compatibility from the catalog.",
+        reason: FALLBACK_REASON,
       });
     });
   }

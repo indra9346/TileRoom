@@ -40,7 +40,10 @@ export const aiConfig = {
     // Gemini latency still varies, so keep generous headroom. Worst case with the
     // single bounded retry below is 2 x 50 s = 100 s, inside the 120 s route maxDuration.
     roomAnalysis: envInt("GEMINI_ROOM_ANALYSIS_TIMEOUT_MS", 50_000),
-    tileRecommendation: envInt("GEMINI_TILE_RECOMMENDATION_TIMEOUT_MS", 15_000),
+    // Raised from 15 s: with a 14-tile catalog one real call measured 13.6 s locally, so in production
+    // (cold start + network) it timed out every time and only the generic fallback ranking was returned.
+    // With the single retry the worst case is 2 x 40 s = 80 s, inside the 120 s route maxDuration.
+    tileRecommendation: envInt("GEMINI_TILE_RECOMMENDATION_TIMEOUT_MS", 40_000),
     visualization: envInt("GEMINI_VISUALIZATION_TIMEOUT_MS", 45_000),
   },
   retries: {

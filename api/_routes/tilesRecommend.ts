@@ -6,8 +6,8 @@ import { checkRateLimit, RateLimits } from "../../server/lib/rateLimit.js";
 import { verifyRoomOwnership } from "../../server/db/rooms.js";
 import { getAnalysisByRoomUploadId } from "../../server/db/analyses.js";
 import { getCandidateTilesForSurfaces } from "../../server/db/tiles.js";
-import { hasRecommendations, getRecommendationsWithTiles, insertRecommendations } from "../../server/db/recommendations.js";
-import { recommendTiles } from "../../server/ai/recommendTiles.js";
+import { hasRecommendations, getRecommendationsWithTiles, insertRecommendations, deleteRecommendations } from "../../server/db/recommendations.js";
+import { isFallbackRanking, recommendTiles } from "../../server/ai/recommendTiles.js";
 import { Errors } from "../../server/lib/apiError.js";
 
 /**
@@ -30,9 +30,10 @@ export default createHandler({ methods: ["GET"], operation: "recommendTilesEndpo
     throw Errors.analysisRequired();
   }
 
-  const alreadyComputed = await hasRecommendations(analysis.id);
-  if (alreadyComputed) {
-    const existing = await getRecommendationsWithTiles(analysis.id);
+  // A stored AI ranking is reused. A stored FALLBACK ranking (saved before fallbacks stopped being
+  // persisted) is not: it is recomputed so the room can still get real AI reasons.
+  const existing = (await hasRecommendations(analysis.id)) ? await getRecommendationsWithTiles(analysis.id) : [];
+  if (existing.length > 0 && !isFallbackRanking(existing)) {
     res.status(200).json({ recommendations: existing, reused: true });
     return;
   }
@@ -42,6 +43,16 @@ export default createHandler({ methods: ["GET"], operation: "recommendTilesEndpo
   const candidateTiles = await getCandidateTilesForSurfaces(analysis.recommendedSurfaces, user.id);
   const recommendations = await recommendTiles(analysis, candidateTiles);
 
+  // The AI was unavailable: answer with the fallback ranking but do not store it, so the next
+  // visit tries the AI again instead of reusing a generic list forever.
+  if (isFallbackRanking(recommendations)) {
+    const byId = new Map(candidateTiles.map((t) => [t.id, t]));
+    const transient = recommendations.map((r) => ({ ...r, tile: byId.get(r.tileId) })).filter((r) => r.tile);
+    res.status(200).json({ recommendations: transient, reused: false, fallback: true });
+    return;
+  }
+
+  if (existing.length > 0) await deleteRecommendations(analysis.id);
   await insertRecommendations(analysis.id, recommendations);
   const withTiles = await getRecommendationsWithTiles(analysis.id);
 

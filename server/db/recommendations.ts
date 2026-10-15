@@ -102,6 +102,16 @@ export async function getRecommendationsWithTiles(roomAnalysisId: string): Promi
     });
 }
 
+/** Removes every stored recommendation of one analysis (used to replace a fallback ranking). */
+export async function deleteRecommendations(roomAnalysisId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("tile_recommendations").delete().eq("room_analysis_id", roomAnalysisId);
+  if (error) {
+    apiLogger.error("deleteRecommendations failed", { operation: "deleteRecommendations", errorCategory: error.code });
+    throw Errors.internal("Failed to refresh tile recommendations.");
+  }
+}
+
 /**
  * Upserts so repeated recommendation runs for the same analysis don't create duplicate rows.
  *
