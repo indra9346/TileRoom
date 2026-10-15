@@ -41,6 +41,8 @@ export const tilesSearchQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  /** "public" = the public catalog (every showroom's tiles marked public); default = the signed-in owner's own tiles. */
+  scope: z.enum(["mine", "public"]).optional(),
 });
 
 export const tilesRecommendQuerySchema = z.object({
@@ -309,7 +311,11 @@ export const updateTileBodySchema = z
 
 export const deleteTileQuerySchema = z.object({ tileId: uuidSchema });
 
-export const setTileActiveBodySchema = z.object({ tileId: uuidSchema, isActive: z.boolean() }).strict();
+/** PATCH: show/hide a tile (isActive) and/or list it in the public catalog (isPublic). */
+export const setTileActiveBodySchema = z
+  .object({ tileId: uuidSchema, isActive: z.boolean().optional(), isPublic: z.boolean().optional() })
+  .strict()
+  .refine((b) => b.isActive !== undefined || b.isPublic !== undefined, "Send isActive and/or isPublic.");
 
 export const setVisualizationVisibilityBodySchema = z.object({ isPublic: z.boolean() }).strict();
 

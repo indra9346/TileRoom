@@ -39,10 +39,14 @@ interface RawTileRow {
   pattern: string | null;
   stock_status: TileStockStatus;
   created_at: string;
+  /** Present once migration 0014 has run and the query selected it. */
+  is_public?: boolean;
 }
 
 export interface TileRow extends TileCandidate {
   ownerId: string | null;
+  /** Listed in the public catalog. Undefined when it was not selected (or migration 0014 has not run yet). */
+  isPublic?: boolean;
   currency: string;
   createdAt: string;
 }
@@ -69,8 +73,15 @@ function mapRow(row: RawTileRow): TileRow {
     pattern: row.pattern,
     stockStatus: row.stock_status,
     createdAt: row.created_at,
+    ...(row.is_public !== undefined ? { isPublic: row.is_public } : {}),
   };
 }
+
+/** Postgres "undefined column": the database has not run the migration that adds a column yet. */
+const isMissingColumn = (error: { code?: string } | null | undefined) => error?.code === "42703";
+
+export const PUBLIC_CATALOG_NOT_READY =
+  "The public catalog isn't set up in the database yet. Run supabase/migrations/0014_public_catalog.sql in Supabase, then try again.";
 
 const SELECT_COLUMNS =
   "id, sku, name, brand, category, material, finish, color_family, size_mm, price_per_sqft, currency, storage_path, suitable_rooms, is_active, owner_id, description, tile_type, pattern, stock_status, created_at";
@@ -86,10 +97,12 @@ export interface TileSearchFilters {
   pageSize?: number;
 }
 
-export async function searchTiles(filters: TileSearchFilters, ownerId?: string): Promise<{ tiles: TileRow[]; total: number }> {
+export async function searchTiles(filters: TileSearchFilters, ownerId?: string, publicOnly = false): Promise<{ tiles: TileRow[]; total: number }> {
   const supabase = getSupabaseServerClient();
   let query = supabase.from("tiles").select(SELECT_COLUMNS, { count: "exact" }).eq("is_active", true);
   if (ownerId) query = query.eq("owner_id", ownerId);
+  // Public catalog: only tiles a showroom chose to list (never ownerless seed rows).
+  if (publicOnly) query = query.eq("is_public", true).not("owner_id", "is", null);
 
   if (filters.category) query = query.eq("category", filters.category);
   if (filters.roomType) query = query.contains("suitable_rooms", [filters.roomType]);
@@ -108,6 +121,9 @@ export async function searchTiles(filters: TileSearchFilters, ownerId?: string):
   query = query.order("created_at", { ascending: false }).range(from, to);
 
   const { data, error, count } = await query;
+
+  // Before migration 0014 there is no public catalog yet: show an empty one instead of failing.
+  if (publicOnly && isMissingColumn(error)) return { tiles: [], total: 0 };
 
   if (error) {
     apiLogger.error("searchTiles failed", { operation: "searchTiles", errorCategory: error.code });
@@ -187,12 +203,33 @@ export interface NewTileInput {
 /** All tiles owned by this showroom, including deactivated ones (for the management screen). */
 export async function listOwnedTiles(ownerId: string): Promise<TileRow[]> {
   const supabase = getSupabaseServerClient();
-  const { data, error } = await supabase.from("tiles").select(SELECT_COLUMNS).eq("owner_id", ownerId).order("created_at", { ascending: false });
+  const run = (columns: string) => supabase.from("tiles").select(columns).eq("owner_id", ownerId).order("created_at", { ascending: false });
+  // The owner screen shows each tile's public switch; fall back to the base columns before migration 0014.
+  let { data, error } = await run(`${SELECT_COLUMNS}, is_public`);
+  if (isMissingColumn(error)) ({ data, error } = await run(SELECT_COLUMNS));
   if (error) {
     apiLogger.error("listOwnedTiles failed", { operation: "listOwnedTiles", errorCategory: error.code });
     throw Errors.internal("Failed to load your tiles.");
   }
-  return (data ?? []).map(mapRow);
+  return ((data ?? []) as unknown as RawTileRow[]).map(mapRow);
+}
+
+/** Owner-scoped: list or unlist one tile in the public catalog. */
+export async function setOwnedTilePublic(ownerId: string, tileId: string, isPublic: boolean): Promise<TileRow | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("tiles")
+    .update({ is_public: isPublic })
+    .eq("id", tileId)
+    .eq("owner_id", ownerId)
+    .select(`${SELECT_COLUMNS}, is_public`)
+    .maybeSingle();
+  if (isMissingColumn(error)) throw Errors.validation(PUBLIC_CATALOG_NOT_READY);
+  if (error) {
+    apiLogger.error("setOwnedTilePublic failed", { operation: "setOwnedTilePublic", errorCategory: error.code });
+    throw Errors.internal("Failed to update the tile.");
+  }
+  return data ? mapRow(data as unknown as RawTileRow) : null;
 }
 
 export async function createTile(ownerId: string, input: NewTileInput): Promise<TileRow> {

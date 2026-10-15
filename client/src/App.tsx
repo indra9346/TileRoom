@@ -110,7 +110,7 @@ function AppShell() {
                       <Route path="/demos" element={<DemosPage />} />
                       <Route path="/calculator" element={<CalculatorPage />} />
                       <Route path="/login" element={<LoginPage />} />
-                      <Route path="/tiles" element={<ProtectedRoute><TileCatalogPage /></ProtectedRoute>} />
+                      <Route path="/tiles" element={<TileCatalogPage />} />
                       <Route path="/my-tiles" element={<ProtectedRoute><MyTilesPage /></ProtectedRoute>} />
                       <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                       <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />

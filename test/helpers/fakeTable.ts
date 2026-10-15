@@ -27,6 +27,8 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
   private insertPayload?: Row | Row[];
   private updatePayload?: Row;
   private countMode = false;
+  private headOnly = false;
+  private rangeSpec?: { from: number; to: number };
 
   constructor(
     private getRows: () => Row[],
@@ -37,6 +39,7 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
 
   select(_cols?: string, opts?: { count?: string; head?: boolean }) {
     if (opts?.count) this.countMode = true;
+    if (opts?.head) this.headOnly = true;
     return this;
   }
   insert(payload: Row | Row[]) {
@@ -55,6 +58,27 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
   }
   eq(col: string, val: unknown) {
     this.filters.push((r) => r[col] === val);
+    return this;
+  }
+  range(from: number, to: number) {
+    this.rangeSpec = { from, to };
+    return this;
+  }
+  contains(col: string, vals: unknown[]) {
+    this.filters.push((r) => Array.isArray(r[col]) && vals.every((v) => (r[col] as unknown[]).includes(v)));
+    return this;
+  }
+  ilike(col: string, pattern: string) {
+    const needle = pattern.replace(/%/g, "").toLowerCase();
+    this.filters.push((r) => String(r[col] ?? "").toLowerCase().includes(needle));
+    return this;
+  }
+  or(_filter: string) {
+    return this;
+  }
+  not(col: string, op: string, val: unknown) {
+    if (op === "is" && val === null) this.filters.push((r) => r[col] !== undefined && r[col] !== null);
+    else if (op === "eq") this.filters.push((r) => r[col] !== val);
     return this;
   }
   is(col: string, val: null) {
@@ -90,6 +114,10 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
     }
     if (this.limitN != null) rows = rows.slice(0, this.limitN);
     return rows;
+  }
+
+  private paged(rows: Row[]): Row[] {
+    return this.rangeSpec ? rows.slice(this.rangeSpec.from, this.rangeSpec.to + 1) : rows;
   }
 
   private violatesUnique(candidate: Row, ignoreId?: unknown): boolean {
@@ -158,8 +186,9 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
     if (this.mode === "insert") result = this.applyInsert();
     else if (this.mode === "update") result = this.applyUpdate();
     else if (this.mode === "delete") result = this.applyDelete();
-    else if (this.countMode) result = { data: null, error: null, count: this.matched().length };
-    else result = { data: this.matched(), error: null };
+    else if (this.countMode && this.headOnly) result = { data: null, error: null, count: this.matched().length };
+    else if (this.countMode) result = { data: this.paged(this.matched()), error: null, count: this.matched().length };
+    else result = { data: this.paged(this.matched()), error: null };
     return Promise.resolve(result).then(onfulfilled, onrejected);
   }
 }

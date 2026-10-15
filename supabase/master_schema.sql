@@ -271,6 +271,10 @@ alter table tiles add column if not exists pattern text;
 alter table tiles add column if not exists stock_status text default 'in_stock';
 alter table tiles add column if not exists created_at timestamptz not null default now();
 alter table tiles add column if not exists updated_at timestamptz not null default now();
+-- Public catalog (migration 0014): existing tiles stay private; new tiles default to public.
+alter table tiles add column if not exists is_public boolean not null default false;
+alter table tiles alter column is_public set default true;
+create index if not exists idx_tiles_public_active on tiles (created_at desc) where is_public and is_active;
 
 create index if not exists idx_tiles_owner_id on tiles(owner_id);
 create unique index if not exists idx_tiles_owner_sku on tiles(owner_id, sku);

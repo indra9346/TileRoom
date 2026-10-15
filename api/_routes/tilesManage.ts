@@ -10,7 +10,7 @@ import {
   deleteTileQuerySchema,
   setTileActiveBodySchema,
 } from "../../server/lib/validation.js";
-import { createTile, deleteOwnedTile, getOwnedTile, listOwnedTiles, setOwnedTileActive, updateOwnedTile } from "../../server/db/tiles.js";
+import { createTile, deleteOwnedTile, getOwnedTile, listOwnedTiles, setOwnedTileActive, setOwnedTilePublic, updateOwnedTile } from "../../server/db/tiles.js";
 import { validateTileImage } from "../../server/ai/imageValidation.js";
 import { uploadImage, deleteImageQuietly } from "../../server/storage/imageStorage.js";
 import { BUCKETS, tileImagePath } from "../../server/storage/buckets.js";
@@ -34,7 +34,9 @@ export default createHandler({ methods: ["GET", "POST", "PUT", "PATCH", "DELETE"
 
   if (req.method === "PATCH") {
     const body = parseOrThrow(setTileActiveBodySchema, req.body);
-    const tile = await setOwnedTileActive(user.id, body.tileId, body.isActive);
+    let tile = null;
+    if (body.isActive !== undefined) tile = await setOwnedTileActive(user.id, body.tileId, body.isActive);
+    if (body.isPublic !== undefined) tile = await setOwnedTilePublic(user.id, body.tileId, body.isPublic);
     if (!tile) throw Errors.tileNotFound();
     res.status(200).json({ tile });
     return;

@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PageBanner } from "@/components/ui/PageBanner";
-import { createMyTile, listMyTiles, setMyTileActive } from "@/api/tiles";
+import { createMyTile, listMyTiles, setMyTileActive, setMyTilePublic } from "@/api/tiles";
 import { friendlyErrorMessage } from "@/api/client";
 import { validateRoomImageFile } from "@/api/rooms";
 import { getPublicTileImageUrl } from "@/lib/tileImage";
@@ -121,9 +121,19 @@ export function MyTilesPage() {
   async function toggle(tile: Tile) {
     try {
       const updated = await setMyTileActive(tile.id, !tile.isActive);
-      setTiles((prev) => prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev);
+      // Keep the public flag the list already knows: this response does not carry it.
+      setTiles((prev) => prev?.map((t) => (t.id === updated.id ? { ...t, ...updated, isPublic: updated.isPublic ?? t.isPublic } : t)) ?? prev);
     } catch (err) {
       setLoadError(friendlyErrorMessage(err, "We couldn't update that tile."));
+    }
+  }
+
+  async function togglePublic(tile: Tile) {
+    try {
+      const updated = await setMyTilePublic(tile.id, !tile.isPublic);
+      setTiles((prev) => prev?.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) ?? prev);
+    } catch (err) {
+      setLoadError(friendlyErrorMessage(err, "We couldn't change the catalog visibility of that tile."));
     }
   }
 
@@ -385,6 +395,21 @@ export function MyTilesPage() {
                               {tile.isActive ? "Hide" : "Show"}
                             </button>
                           </div>
+                          {tile.isPublic !== undefined && (
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={tile.isPublic}
+                              aria-label={`${tile.name}: ${tile.isPublic ? "listed in the public catalog" : "private to your showroom"}`}
+                              onClick={() => togglePublic(tile)}
+                              className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-xs text-stone-600 transition-colors hover:bg-stone-100"
+                            >
+                              <span>{tile.isPublic ? "Public catalog" : "Private"}</span>
+                              <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${tile.isPublic ? "bg-sage-600" : "bg-stone-300"}`} aria-hidden="true">
+                                <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${tile.isPublic ? "left-3.5" : "left-0.5"}`} />
+                              </span>
+                            </button>
+                          )}
                         </div>
                       </Card>
                     </motion.div>

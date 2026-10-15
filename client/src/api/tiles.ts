@@ -9,6 +9,8 @@ export interface TileSearchFilters {
   q?: string;
   page?: number;
   pageSize?: number;
+  /** "public" = the public catalog anyone can browse; default = the signed-in showroom's own tiles. */
+  scope?: "mine" | "public";
 }
 
 export interface TileSearchResult {
@@ -27,6 +29,7 @@ export async function searchTiles(filters: TileSearchFilters = {}): Promise<Tile
     q: filters.q,
     page: filters.page?.toString(),
     pageSize: filters.pageSize?.toString(),
+    scope: filters.scope,
   });
 }
 
@@ -78,6 +81,12 @@ export async function createMyTile(form: NewTileForm): Promise<Tile> {
     mimeType: prepared.type,
     base64Data: await readBase64(prepared),
   });
+  return res.tile;
+}
+
+/** List or unlist one of the owner's tiles in the public catalog. */
+export async function setMyTilePublic(tileId: string, isPublic: boolean): Promise<Tile> {
+  const res = await apiSend<{ tile: Tile }>("PATCH", "/api/tiles/manage", { tileId, isPublic });
   return res.tile;
 }
 

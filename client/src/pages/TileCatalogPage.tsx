@@ -11,12 +11,17 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { friendlyErrorMessage } from "@/api/client";
 import { searchTiles, type TileSearchFilters } from "@/api/tiles";
 import { useWorkflow } from "@/context/WorkflowContext";
+import { useAuth } from "@/context/AuthContext";
 import type { Tile } from "@/api/types";
 import { Reveal, springModal } from "@/components/ui/motion";
 
 /** Catalog-only browsing (no room context yet) — used by the top nav and the landing page's "Explore Tiles" CTA. */
 export function TileCatalogPage() {
   const { selectedTile, selectTile } = useWorkflow();
+  const { user, loading: authLoading } = useAuth();
+  // Signed-out visitors browse the public catalog. A signed-in showroom sees its own catalog; an
+  // account with no tiles of its own (a customer) falls back to the public catalog.
+  const [scope, setScope] = useState<"mine" | "public">("public");
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -35,10 +40,18 @@ export function TileCatalogPage() {
   }
 
   const loadTiles = useCallback(async () => {
+    if (authLoading) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await searchTiles(filters);
+      let res = await searchTiles({ ...filters, scope: user ? "mine" : "public" });
+      let shown: "mine" | "public" = user ? "mine" : "public";
+      const filtered = Boolean(filters.q || filters.category || filters.colorFamily || filters.material || filters.finish);
+      if (user && res.total === 0 && !filtered && (filters.page ?? 1) === 1) {
+        res = await searchTiles({ ...filters, scope: "public" });
+        shown = "public";
+      }
+      setScope(shown);
       setTiles(res.tiles);
       setTotal(res.total);
     } catch (err) {
@@ -46,7 +59,7 @@ export function TileCatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, user, authLoading]);
 
   useEffect(() => {
     void loadTiles();
@@ -97,7 +110,7 @@ export function TileCatalogPage() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
               >
-                {loading ? "Loading…" : `${total} tile${total === 1 ? "" : "s"} found`}
+                {loading ? "Loading…" : `${total} tile${total === 1 ? "" : "s"} found${scope === "public" ? " in the public catalog" : " in your showroom"}`}
               </motion.span>
             </AnimatePresence>
           </p>

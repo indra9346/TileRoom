@@ -71,6 +71,8 @@ export interface Tile {
   pattern?: string | null;
   stockStatus?: string | null;
   imageUrl?: string | null;
+  /** Listed in the public catalog (owner screens only; undefined before the database migration). */
+  isPublic?: boolean;
 }
 
 export interface TileRecommendation {
