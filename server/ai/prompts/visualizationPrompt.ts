@@ -82,6 +82,23 @@ function tileCount(areaMm: number, tileMm: number): number {
   return Math.max(1, Math.round(areaMm / tileMm));
 }
 
+/** "1:2 rectangle (plank)" / "square" from a real size, so the model never squares a rectangular tile. */
+function tileShape(sizeMm: string | null | undefined): string | null {
+  const size = parseTileSizeMm(sizeMm);
+  if (!size) return null;
+  const long = Math.max(size.w, size.h);
+  const short = Math.min(size.w, size.h);
+  const ratio = long / short;
+  if (ratio < 1.15) return `${size.w} x ${size.h} mm square`;
+  const nice = Math.abs(ratio - Math.round(ratio)) < 0.1 ? `1:${Math.round(ratio)}` : `1:${ratio.toFixed(1)}`;
+  return `${size.w} x ${size.h} mm, a ${nice} rectangle${ratio >= 3 ? " (plank)" : ""}, never a square`;
+}
+
+/** Short identity repeated on every role line, so an area can never pick up the wrong tile's look. */
+function tileIdentity(tile: TileCandidate): string {
+  return [`"${tile.name}"`, tile.colorFamily, tile.finish, tileShape(tile.sizeMm)].filter(Boolean).join(", ");
+}
+
 function tileFacts(tile: TileCandidate): string {
   return [
     `name: "${tile.name}"`,
@@ -146,7 +163,7 @@ None given. Use sensible defaults: apply each pattern to its target area only.`;
     .map((area, i) => {
       const spec = PATTERN_SPECS[area.pattern];
       const roleLines = area.tiles
-        .map((tile, idx) => `   - ${spec.roles[idx] ?? `additional tile ${idx + 1}`}: TILE ${letterOf(tile)}`)
+        .map((tile, idx) => `   - ${spec.roles[idx] ?? `additional tile ${idx + 1}`}: TILE ${letterOf(tile)} (${tileIdentity(tile)})`)
         .join("\n");
       const numberedWall = layout !== "open" && area.wall ? wallSpec(layout, area.wall) : undefined;
       const areaTitle = numberedWall
@@ -224,8 +241,11 @@ ${requirementsBlock}
 6. REALISM (strict)
 - Photorealistic result that looks like a real photograph of the finished room, not a render, sketch, collage or texture pasted on top.
 - Follow each surface's geometry: correct perspective and vanishing points, correct orientation on floor versus wall, correct wrapping at corners and edges, and correct cut-offs where the tile meets fixtures, skirting, steps and openings.
+- Each area keeps ONE consistent layout pattern from edge to edge: the pattern named for it must be recognisable everywhere in that area, with no region where it degrades into a different layout.
 - Render every tile at a believable physical scale for its stated size, with straight, evenly spaced grout lines of a suitable colour and width, and with the pattern aligned to the surface (no warping, no stretched tiles).
 - Match shadows, ambient occlusion, reflections (more on glossy finishes, softer on matt) and highlights to the existing light so the new surfaces are physically integrated.
+- Keep every tile's own tone: a dark tile stays as dark as its reference, a light tile stays light. Never lighten, desaturate, tint or average the colours of different tiles towards each other, and never replace a veined tile with a plain one.
+- Keep every tile's real proportions from its size: a rectangular tile stays rectangular in the stated orientation and ratio, never squared.
 - Preserve each tile's real colour, pattern, veining and finish from its reference image. If a reference cannot show something, stay as close to it as possible rather than inventing an unrelated pattern.
 - Avoid these common mistakes: tiling over doors, windows, mirrors, switches or sanitary ware; tiling the ceiling; one giant stretched tile instead of a grid; repeating a single tile image as an obvious copy-paste pattern; changing the tile's base colour to match the room lighting.
 

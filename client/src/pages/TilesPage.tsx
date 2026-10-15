@@ -287,6 +287,7 @@ export function TilesPage() {
       return;
     }
     setGenerating(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     setGenerationError(null);
     setInsufficientCredits(false);
     setGenerationStage(0);

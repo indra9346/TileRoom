@@ -100,3 +100,16 @@ describe("stale generation detection", () => {
     expect(isJobStale({ status: "failed", startedAt: null, createdAt: ago(STALE_GENERATION_MS * 3) }, now)).toBe(false);
   });
 });
+
+describe("per-area tile identity", () => {
+  const analysis = { roomType: "living_room", constructionState: "unfinished", perspective: "straight_on", lighting: "natural", doorCount: 1, windowCount: 1, fixtures: [] } as unknown as RoomAnalysis;
+  const dark = { id: "a", name: "Armani Grey Pietra", colorFamily: "Smoky Charcoal Grey", finish: "satin matte", sizeMm: "800x1600" } as TileCandidate;
+  const light = { id: "b", name: "Statuario Royal White", colorFamily: "White & Grey", finish: "glossy", sizeMm: "600x600" } as TileCandidate;
+
+  it("repeats colour, finish and real proportions on every role line", () => {
+    const prompt = buildDesignPrompt(analysis, [{ surface: "floor", location: "Entire floor", pattern: "border_frame", tiles: [dark, light] }], null, "B");
+    expect(prompt).toContain('field: TILE A ("Armani Grey Pietra", Smoky Charcoal Grey, satin matte, 800 x 1600 mm, a 1:2 rectangle, never a square)');
+    expect(prompt).toContain('border: TILE B ("Statuario Royal White", White & Grey, glossy, 600 x 600 mm square)');
+    expect(prompt).toMatch(/a dark tile stays as dark as its reference/);
+  });
+});

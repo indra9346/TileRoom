@@ -57,7 +57,7 @@ function Slot({ role, required, tile, onPick, onClear }: { role: string; require
       </button>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-          {role}
+          {role.replace(/\s*\(optional\)\s*$/i, "")}
           {!required && <span className="ml-1 font-normal normal-case text-stone-400">(optional)</span>}
         </p>
         {tile ? (

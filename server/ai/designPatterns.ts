@@ -85,7 +85,7 @@ export const PATTERN_SPECS: Record<DesignPattern, PatternSpec> = {
     max: 2,
     roles: ["field", "border"],
     prompt:
-      "Cover the inside of the area with the first tile and frame it with a continuous border, one tile wide, of the second tile along the edges of the area.",
+      "Cover the inside of the area with the first tile and frame it with a continuous border, one tile wide, of the second tile running along every edge of the area (along the walls and across openings such as doorways), with neat mitred or butt-jointed corners. The border must be clearly visible as a band around the field, not mixed into it.",
   },
   feature_panel: {
     label: "Feature panel",
@@ -101,7 +101,7 @@ export const PATTERN_SPECS: Record<DesignPattern, PatternSpec> = {
     max: 2,
     roles: ["main tile", "alternate tile (optional)"],
     prompt:
-      "Lay the tile in a herringbone arrangement (rectangular tiles interlocking at right angles in a zig-zag). If a second tile is given, alternate the two by plank.",
+      "Lay the tile in a true herringbone: rectangular planks interlocking at right angles in a continuous zig-zag, each plank's end butting against the long side of its neighbour. Keep this exact herringbone geometry over the WHOLE area, including the far edges and corners; never switch to a straight grid, brick or diagonal layout partway. If a second tile is given, alternate the two tiles by zig-zag row: one complete zig-zag row in the first tile, the next complete row in the second tile, repeating.",
   },
   diagonal: {
     label: "Diagonal (45°)",
@@ -109,7 +109,7 @@ export const PATTERN_SPECS: Record<DesignPattern, PatternSpec> = {
     max: 2,
     roles: ["main tile", "alternate tile (optional)"],
     prompt:
-      "Lay the tile on the diagonal at 45 degrees to the walls, with straight even grout lines. If a second tile is given, alternate the two like a diagonal checkerboard.",
+      "Lay the tile on the diagonal at 45 degrees to the walls, with straight even grout lines, consistently across the whole area. If a second tile is given, alternate the two like a diagonal checkerboard (every tile surrounded on its four sides by the other tile).",
   },
   random_mix: {
     label: "Random mix",

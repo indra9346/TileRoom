@@ -55,6 +55,7 @@ export function RoomTemplatePicker({ templateId, areas, onTemplateChange, onTogg
               type="button"
               role="radio"
               aria-checked={active}
+              aria-label={`${t.label}: ${t.blurb}`}
               onClick={() => !active && onTemplateChange(id)}
               className={cn(
                 "flex flex-col rounded-xl border p-2.5 text-left transition-colors",

@@ -180,5 +180,6 @@ export function newLocalTemplate(input: CustomTemplateInput): CustomTemplate {
 /** The layout label of a template id, for the save dialog. */
 export function baseTemplateLabel(id: TemplateId): string {
   const t = TEMPLATES[id];
-  return t.layout === "open" ? t.label : `${t.label} (${LAYOUTS[t.layout].short})`;
+  // The wall layout only matters when the template has walls (a floor-only template is not a "C-shape").
+  return t.layout === "open" || !t.faces.some((f) => f.wall) ? t.label : `${t.label} (${LAYOUTS[t.layout].short})`;
 }
