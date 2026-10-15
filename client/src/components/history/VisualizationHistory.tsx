@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EASE_IN, EASE_OUT, rowItem, staggerContainer } from "@/components/ui/motion";
 import { friendlyErrorMessage } from "@/api/client";
 import { deleteVisualization, listMyVisualizations, setVisualizationVisibility } from "@/api/visualizations";
 import { getPublicTileImageUrl } from "@/lib/tileImage";
@@ -21,6 +23,8 @@ const STATUS: Record<string, { tone: "success" | "warning" | "danger" | "neutral
 };
 const IN_PROGRESS = new Set(["pending", "generating"]);
 const POLL_MS = 5000;
+/** ~10 minutes of polling; after that the list only refreshes when the tab becomes visible again. */
+const MAX_POLLS = 120;
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -67,11 +71,24 @@ export function VisualizationHistory() {
     };
   }, [refresh]);
 
-  // Real-time: while something is being generated, check again every few seconds.
+  // Real-time: while something is being generated, check again every few seconds — capped so a row stuck
+  // in "generating" can't poll forever. The budget resets once nothing is running any more.
   const anyRunning = items?.some((v) => IN_PROGRESS.has(v.status)) ?? false;
+  const pollCount = useRef(0);
   useEffect(() => {
-    if (!anyRunning) return;
-    const id = window.setInterval(() => void refresh(), POLL_MS);
+    if (!anyRunning) {
+      pollCount.current = 0;
+      return;
+    }
+    if (pollCount.current >= MAX_POLLS) return;
+    const id = window.setInterval(() => {
+      if (!mounted.current || pollCount.current >= MAX_POLLS) {
+        window.clearInterval(id);
+        return;
+      }
+      pollCount.current += 1;
+      void refresh();
+    }, POLL_MS);
     return () => window.clearInterval(id);
   }, [anyRunning, refresh]);
 
@@ -112,11 +129,12 @@ export function VisualizationHistory() {
     setTogglingId(v.id);
     try {
       await setVisualizationVisibility(v.id, next);
+      if (!mounted.current) return;
       setItems((prev) => prev?.map((item) => (item.id === v.id ? { ...item, isPublic: next } : item)) ?? prev);
     } catch (err) {
-      setError(friendlyErrorMessage(err, "We couldn't change that design's visibility."));
+      if (mounted.current) setError(friendlyErrorMessage(err, "We couldn't change that design's visibility."));
     } finally {
-      setTogglingId(null);
+      if (mounted.current) setTogglingId(null);
     }
   }
 
@@ -143,31 +161,43 @@ export function VisualizationHistory() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search designs"
             aria-label="Search designs"
-            className="w-full rounded-lg border border-stone-300 bg-stone-50 px-3.5 py-2.5 text-sm placeholder:text-stone-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay-500"
+            className="field-focus w-full rounded-lg border border-stone-300 bg-stone-50 px-3.5 py-2.5 text-sm placeholder:text-stone-500 focus:bg-white"
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        <div className="scroll-soft min-h-0 flex-1 overflow-y-auto p-2">
           {items === null ? (
             <div className="space-y-2 p-2">
-              <Skeleton className="h-14" />
-              <Skeleton className="h-14" />
-              <Skeleton className="h-14" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-1 py-1">
+                  <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : items.length === 0 ? (
-            <p className="p-4 text-sm text-stone-500">No designs yet. Upload a room and make your first one.</p>
+            <p className="animate-fade-up p-4 text-sm text-stone-500">No designs yet. Upload a room and make your first one.</p>
           ) : groups.length === 0 ? (
-            <p className="p-4 text-sm text-stone-500">Nothing matches that search.</p>
+            <p className="animate-fade-up p-4 text-sm text-stone-500">Nothing matches that search.</p>
           ) : (
             groups.map((group) => (
               <section key={group.label} className="mb-3">
-                <h2 className="sticky top-0 z-10 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{group.label}</h2>
-                <ul>
+                <h2 className="sticky top-0 z-10 bg-white/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500 backdrop-blur-sm">{group.label}</h2>
+                <motion.ul variants={staggerContainer(0.04)} initial="hidden" animate="show">
+                  <AnimatePresence initial={false}>
                   {group.items.map((v) => {
                     const status = STATUS[v.status] ?? STATUS.pending!;
                     const active = v.id === selectedId;
                     return (
-                      <li key={v.id} className="group relative">
+                      <motion.li
+                        key={v.id}
+                        className="group relative"
+                        variants={rowItem}
+                        exit={{ opacity: 0, x: -16, transition: { duration: 0.2, ease: EASE_IN } }}
+                      >
                         <button
                           type="button"
                           onClick={() => {
@@ -175,10 +205,22 @@ export function VisualizationHistory() {
                             setShowDetailOnPhone(true);
                           }}
                           aria-current={active ? "true" : undefined}
-                          className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors", active ? "bg-clay-100" : "hover:bg-stone-100")}
+                          className={cn(
+                            "relative isolate flex w-full items-center gap-3 rounded-xl py-2.5 pl-3 pr-11 text-left transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-champagne-500",
+                            !active && "hover:bg-stone-100",
+                          )}
                         >
+                          {active && (
+                            <motion.span
+                              layoutId="history-active-row"
+                              className="absolute inset-0 -z-10 rounded-xl bg-clay-100 ring-1 ring-inset ring-clay-200"
+                              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                              aria-hidden="true"
+                            />
+                          )}
                           <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-stone-200">
-                            {v.resultImageUrl ? <img src={v.resultImageUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : null}
+                            {v.resultImageUrl ? <img src={v.resultImageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" /> : null}
                             <span className={cn("absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white", status.dot)} aria-hidden="true" />
                           </span>
                           <span className="min-w-0 flex-1">
@@ -193,14 +235,17 @@ export function VisualizationHistory() {
                           onClick={() => setPendingDelete(v)}
                           aria-label={`Delete ${visualizationTitle(v)}`}
                           title="Delete"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 text-stone-400 hover:bg-red-50 hover:text-red-700 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-stone-500 transition-[opacity,background-color,color] duration-200 hover:bg-red-50 hover:text-red-700 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                         >
-                          ✕
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
                         </button>
-                      </li>
+                      </motion.li>
                     );
                   })}
-                </ul>
+                  </AnimatePresence>
+                </motion.ul>
               </section>
             ))
           )}
@@ -209,24 +254,48 @@ export function VisualizationHistory() {
 
       {/* Detail pane */}
       <section className={cn("min-w-0", !showDetailOnPhone && "hidden lg:block")} aria-live="polite">
-        {error && (
-          <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        {selected ? (
-          <Detail
-            v={selected}
-            toggling={togglingId === selected.id}
-            onBack={() => setShowDetailOnPhone(false)}
-            onDelete={() => setPendingDelete(selected)}
-            onToggle={() => toggleVisibility(selected)}
-          />
-        ) : (
-          <div className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center text-sm text-stone-500">
-            {items && items.length > 0 ? "Pick a design from the list to see it here." : "Your finished designs will appear here."}
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {error && (
+            <motion.p
+              key="error"
+              role="alert"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+            >
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <AnimatePresence mode="wait" initial={false}>
+          {selected ? (
+            <motion.div
+              key={selected.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE_OUT } }}
+              exit={{ opacity: 0, y: -6, transition: { duration: 0.15, ease: EASE_IN } }}
+            >
+              <Detail
+                v={selected}
+                toggling={togglingId === selected.id}
+                onBack={() => setShowDetailOnPhone(false)}
+                onDelete={() => setPendingDelete(selected)}
+                onToggle={() => toggleVisibility(selected)}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="placeholder"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex min-h-[40vh] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center text-sm text-stone-500"
+            >
+              {items && items.length > 0 ? "Pick a design from the list to see it here." : "Your finished designs will appear here."}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       <ConfirmDialog
@@ -246,7 +315,7 @@ function Detail({ v, toggling, onBack, onDelete, onToggle }: { v: Visualization;
   return (
     <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
       <div className="flex items-center gap-3 border-b border-stone-200 px-4 py-3">
-        <button type="button" onClick={onBack} className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-100 lg:hidden">
+        <button type="button" onClick={onBack} className="shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium text-stone-700 transition-[background-color,transform] duration-200 hover:bg-stone-100 active:scale-95 lg:hidden">
           ← History
         </button>
         <div className="min-w-0 flex-1">
@@ -258,7 +327,14 @@ function Detail({ v, toggling, onBack, onDelete, onToggle }: { v: Visualization;
 
       <div className="bg-stone-100">
         {v.resultImageUrl ? (
-          <img src={v.resultImageUrl} alt={`Visualization: ${visualizationTitle(v)}`} className="mx-auto max-h-[60vh] w-full object-contain" />
+          <motion.img
+            src={v.resultImageUrl}
+            alt={`Visualization: ${visualizationTitle(v)}`}
+            className="mx-auto max-h-[60vh] w-full object-contain"
+            initial={{ opacity: 0, scale: 1.02 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: EASE_OUT }}
+          />
         ) : (
           <div className="flex aspect-[16/9] items-center justify-center px-6 text-center text-sm text-stone-500">
             {IN_PROGRESS.has(v.status) ? (
@@ -277,17 +353,21 @@ function Detail({ v, toggling, onBack, onDelete, onToggle }: { v: Visualization;
 
       <div className="space-y-4 p-4 sm:p-5">
         {areas.length > 0 ? (
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <motion.ul className="grid gap-2 sm:grid-cols-2" variants={staggerContainer(0.05, 0.1)} initial="hidden" animate="show">
             {areas.map((a, i) => (
-              <li key={`${a.surface}-${a.location}-${i}`} className="rounded-xl border border-stone-200 p-3">
-                <p className="text-xs uppercase tracking-wide text-stone-400">
+              <motion.li
+                key={`${a.surface}-${a.location}-${i}`}
+                variants={rowItem}
+                className="min-w-0 rounded-xl border border-stone-200 p-3 transition-colors duration-200 hover:border-sage-400/70 hover:bg-surface-card"
+              >
+                <p className="text-xs uppercase tracking-wide text-stone-500">
                   {SURFACES[a.surface]?.label ?? a.surface} · {PATTERNS[a.pattern]?.label ?? a.pattern}
                 </p>
                 <p className="truncate text-sm font-medium text-stone-900">{a.location}</p>
                 {a.patternNote && <p className="truncate text-xs text-stone-500">{a.patternNote}</p>}
-              </li>
+              </motion.li>
             ))}
-          </ul>
+          </motion.ul>
         ) : (
           v.tile && (
             <div className="flex items-center gap-3">
@@ -299,12 +379,12 @@ function Detail({ v, toggling, onBack, onDelete, onToggle }: { v: Visualization;
 
         {v.requirements && (
           <div>
-            <p className="text-xs uppercase tracking-wide text-stone-400">Requirements</p>
+            <p className="text-xs uppercase tracking-wide text-stone-500">Requirements</p>
             <p className="mt-1 whitespace-pre-wrap text-sm text-stone-700">{v.requirements}</p>
           </div>
         )}
 
-        <p className="text-xs text-stone-400">
+        <p className="text-xs text-stone-500">
           {typeof v.creditsCharged === "number" && v.creditsCharged > 0 ? `${v.creditsCharged} credits · ` : ""}
           {v.isPublic ? "Public: shown on the signed-out feed" : "Private: only you can see this"}
         </p>

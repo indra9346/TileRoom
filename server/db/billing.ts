@@ -348,6 +348,23 @@ export async function recordWebhookEventOnce(providerEventId: string, eventType:
   return true;
 }
 
+/** Marks a webhook event as fully applied (payment_events.processed_at). Best effort: the event is already applied. */
+export async function markWebhookEventProcessed(providerEventId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("payment_events").update({ processed_at: new Date().toISOString() }).eq("provider_event_id", providerEventId);
+  if (error) apiLogger.warn("markWebhookEventProcessed failed", { operation: "markWebhookEventProcessed", errorCategory: error.code });
+}
+
+/**
+ * Forgets an event whose processing failed, so Razorpay's redelivery is processed instead of being
+ * dropped as a duplicate. Safe because every ledger RPC is itself idempotent per payment / refund id.
+ */
+export async function forgetWebhookEvent(providerEventId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("payment_events").delete().eq("provider_event_id", providerEventId).is("processed_at", null);
+  if (error) apiLogger.warn("forgetWebhookEvent failed", { operation: "forgetWebhookEvent", errorCategory: error.code });
+}
+
 export function newIdempotencyKey(): string {
   return randomUUID();
 }

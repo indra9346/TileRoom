@@ -182,6 +182,7 @@ export async function listPublicVisualizations(limit = 100): Promise<Visualizati
     .from("visualizations")
     .select(SELECT_COLUMNS)
     .eq("is_public", true)
+    .eq("status", "completed")
     .order("created_at", { ascending: false })
     .limit(limit);
 

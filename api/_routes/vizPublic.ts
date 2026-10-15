@@ -12,6 +12,13 @@ import { BUCKETS } from "../../server/storage/buckets.js";
  * required, and NEVER includes a private row — listPublicVisualizations()
  * filters is_public = true at the query itself.
  */
+/** Only what a public viewer needs to read the card; never the owner id or storage path. */
+function publicTile(tile: Awaited<ReturnType<typeof getTileById>>) {
+  if (!tile) return null;
+  const { id, name, brand, category, material, finish, colorFamily, sizeMm, isActive } = tile;
+  return { id, name, brand, category, material, finish, colorFamily, sizeMm, isActive };
+}
+
 export default createHandler({ methods: ["GET"], operation: "listPublicVisualizations" }, async (_req: VercelRequest, res: VercelResponse) => {
   const rows = await listPublicVisualizations();
 
@@ -21,7 +28,7 @@ export default createHandler({ methods: ["GET"], operation: "listPublicVisualiza
       roomUploadId: v.roomUploadId,
       status: v.status,
       appliedSurfaces: v.appliedSurfaces,
-      errorMessage: v.errorMessage,
+      errorMessage: null,
       requirements: v.requirements,
       roomType: v.roomType,
       creditsCharged: v.creditsCharged,
@@ -32,7 +39,8 @@ export default createHandler({ methods: ["GET"], operation: "listPublicVisualiza
       // one), since createSignedUrl requires proof the path belongs to the
       // id it's given.
       resultImageUrl: v.resultStoragePath ? await createSignedUrl(BUCKETS.generatedVisualizations, v.resultStoragePath, v.userId) : null,
-      tile: await getTileById(v.tileId),
+      tile: publicTile(await getTileById(v.tileId)),
+      design: v.design ?? null,
     })),
   );
 

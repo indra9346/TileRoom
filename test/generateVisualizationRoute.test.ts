@@ -353,6 +353,36 @@ describe("POST /api/_routes/vizGenerate", () => {
     expect(afterSecond).toHaveLength(2); // a genuinely new request after success gets its own visualization
   });
 
+  test("a second click while the first generation is still running is refused (no second Gemini call or charge)", async () => {
+    const tile = makeFloorTile();
+    tileImpl = async () => tile;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let calls = 0;
+    generateVisualizationImpl = async () => {
+      calls++;
+      await gate;
+      return { imageBuffer: Buffer.from("generated"), mimeType: "image/png", model: "m", finishReason: null, durationMs: 1 };
+    };
+    const body = { roomUploadId: ROOM_ID, tileId: tile.id, surfaces: ["floor"] };
+
+    const res1 = makeRes();
+    const first = handler(buildReq(body), res1);
+    // Let the first request reach the model call.
+    for (let i = 0; i < 50 && calls === 0; i++) await new Promise((r) => setImmediate(r));
+    expect(calls).toBe(1);
+
+    const res2 = makeRes();
+    await handler(buildReq(body), res2);
+    expect(res2.statusCode).toBe(409);
+    expect((res2._json as any).error.code).toBe("GENERATION_IN_PROGRESS");
+
+    release();
+    await first;
+    expect(res1.statusCode).toBe(200);
+    expect(calls).toBe(1);
+  });
+
   describe("credit charging", () => {
     test("a successful generation holds then COMMITS the credit hold exactly once; response reports the cost", async () => {
       const tile = makeFloorTile();
@@ -391,7 +421,24 @@ describe("POST /api/_routes/vizGenerate", () => {
       expect(heldTransactions.size).toBe(0);
       expect(committedTransactions.size).toBe(0);
       expect(fakeClient._dump("visualizations")[0]!.status).toBe("failed");
-      expect(fakeClient._dump("generation_jobs")[0]!.status).toBe("failed");
+      // The model was never called, so the attempt is discarded instead of using up the retry budget.
+      expect(fakeClient._dump("generation_jobs")).toHaveLength(0);
+    });
+
+    test("repeated 'no credits' clicks never lock the design out once credits are bought", async () => {
+      const tile = makeFloorTile();
+      tileImpl = async () => tile;
+      holdShouldFail = true;
+      for (let i = 0; i < 4; i++) {
+        const res = makeRes();
+        await handler(buildReq({ roomUploadId: ROOM_ID, tileId: tile.id, surfaces: ["floor"] }), res);
+        expect(res.statusCode).toBe(402);
+      }
+      holdShouldFail = false;
+      generateVisualizationImpl = async () => ({ imageBuffer: Buffer.from("img"), mimeType: "image/png", model: "m", finishReason: null, durationMs: 1 });
+      const res = makeRes();
+      await handler(buildReq({ roomUploadId: ROOM_ID, tileId: tile.id, surfaces: ["floor"] }), res);
+      expect(res.statusCode).toBe(200);
     });
 
     test("a failed Gemini call RELEASES the hold (never permanently loses credits) and never commits it", async () => {

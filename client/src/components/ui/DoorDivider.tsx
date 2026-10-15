@@ -16,11 +16,11 @@ export function DoorDivider({ label }: DoorDividerProps) {
     <div className="container-page" aria-hidden="true">
       <div className="relative mx-auto flex h-14 max-w-3xl items-center justify-center overflow-hidden sm:h-16">
         <motion.span
-          className="absolute h-px bg-hairline"
-          initial={{ width: "0%" }}
-          whileInView={{ width: "100%" }}
+          className="absolute inset-x-0 h-px origin-center bg-hairline"
+          initial={{ scaleX: 0 }}
+          whileInView={{ scaleX: 1 }}
           viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         />
         <motion.div
           className="relative z-10 flex items-center gap-3 bg-surface-app px-5"

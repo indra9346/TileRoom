@@ -5,6 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody } from "@/components/ui/Card";
+import { EASE_IN, EASE_OUT, Reveal, hoverLift, revealViewport, staggerContainer, staggerItem } from "@/components/ui/motion";
+
+const videoChip =
+  "rounded bg-white/10 px-2 py-1 text-stone-300 transition-[background-color,color,transform] duration-150 hover:bg-white/20 hover:text-white active:scale-95";
 
 interface DemoScenario {
   id: string;
@@ -128,16 +132,21 @@ export function DemosPage() {
   return (
     <div className="min-h-screen bg-transparent pb-24 text-stone-950">
       {/* Top Banner */}
-      <section className="border-b border-stone-300/70 bg-[#F3F6F1]/70 backdrop-blur-md py-12">
+      <section className="border-b border-stone-300/70 bg-[#F3F6F1]/70 py-10 backdrop-blur-md sm:py-12">
         <div className="container-page">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
+          <motion.div
+            className="flex flex-wrap items-center justify-between gap-4"
+            variants={staggerContainer(0.1)}
+            initial="hidden"
+            animate="show"
+          >
+            <motion.div variants={staggerItem} className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-700 border border-emerald-200">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                   Live Tested Proof
                 </span>
-                <span className="text-xs text-stone-400">|</span>
+                <span className="text-xs text-stone-400" aria-hidden="true">|</span>
                 <span className="text-xs font-medium text-stone-500">In-Situ Washroom Wall Test</span>
               </div>
               <h1 className="mt-3 font-display text-3xl font-semibold text-stone-900 sm:text-4xl lg:text-5xl">
@@ -146,8 +155,8 @@ export function DemosPage() {
               <p className="mt-3 max-w-2xl text-base text-stone-600 sm:text-lg">
                 Watch how a real washroom with dated beige tiles is transformed into a modern luxury marble finish — without touching a single pipe, basin, or camera coordinate.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
+            </motion.div>
+            <motion.div variants={staggerItem} className="flex flex-wrap gap-3">
               <Link to="/upload">
                 <Button size="lg" className="shadow-lg shadow-stone-900/15">
                   Try Your Own Space →
@@ -158,27 +167,35 @@ export function DemosPage() {
                   Browse Catalog
                 </Button>
               </Link>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
       {/* Main Video Showcase */}
       <section className="container-page mt-10">
-        <div className="overflow-hidden rounded-3xl border border-hairline bg-surface-card shadow-2xl">
+        <motion.div
+          className="overflow-hidden rounded-3xl border border-hairline bg-surface-card shadow-2xl"
+          initial={{ opacity: 0, y: 24, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT }}
+        >
           {/* Video Player Header Bar — light mat frame; the video itself
               keeps a neutral dark backdrop (standard player convention) */}
-          <div className="flex flex-wrap items-center justify-between border-b border-hairline bg-surface-sage/70 px-5 py-3 text-xs text-ink-secondary">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-hairline bg-surface-sage/70 px-4 py-3 text-xs text-ink-secondary sm:px-5">
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-ping" />
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
               <span className="font-semibold text-ink">LIVE DEMO:</span>
               <span>Washroom Wall Tile Transformation</span>
             </div>
-            <div className="flex items-center gap-4 text-ink-secondary">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-secondary sm:gap-x-4">
               <span>Resolution: 1080p Cinematic</span>
-              <span>•</span>
+              <span aria-hidden="true">•</span>
               <span>Camera: Fixed Tripod</span>
-              <span>•</span>
+              <span aria-hidden="true">•</span>
               <span className="text-emerald-700 font-medium">100% Geometry Preserved</span>
             </div>
           </div>
@@ -213,18 +230,18 @@ export function DemosPage() {
             </div>
 
             {/* Center Laser Mapping Indicator */}
-            <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-stone-950/80 px-4 py-1.5 text-xs font-medium text-stone-200 backdrop-blur border border-clay-500/40 shadow-lg">
+            <div className="pointer-events-none absolute bottom-16 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded-full border border-clay-500/40 bg-stone-950/80 px-4 py-1.5 text-xs font-medium text-stone-200 shadow-lg backdrop-blur md:block">
               ✨ Real-time Surface Perspective & Specular Light Mapping
             </div>
 
             {/* Video Controls Bar Overlay */}
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/80 to-transparent p-4 transition-opacity duration-300">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/80 to-transparent p-3 transition-opacity duration-300 sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={togglePlay}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-900 transition hover:bg-clay-300 shadow"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-stone-900 shadow transition-[background-color,transform] duration-150 hover:scale-105 hover:bg-clay-300 active:scale-90"
                     aria-label={isPlaying ? "Pause" : "Play"}
                   >
                     {isPlaying ? (
@@ -241,7 +258,7 @@ export function DemosPage() {
                   <button
                     type="button"
                     onClick={toggleMute}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition-[background-color,transform] duration-150 hover:bg-white/20 active:scale-90"
                     aria-label={isMuted ? "Unmute" : "Mute"}
                   >
                     {isMuted ? (
@@ -264,26 +281,30 @@ export function DemosPage() {
                 <div className="hidden sm:flex items-center gap-1.5 text-xs text-stone-400">
                   <span className="mr-1">Jump to:</span>
                   <button
+                    type="button"
                     onClick={() => jumpToTime(0)}
-                    className="rounded bg-white/10 px-2 py-1 text-stone-300 hover:bg-white/20 transition"
+                    className={videoChip}
                   >
                     00:00 Original
                   </button>
                   <button
+                    type="button"
                     onClick={() => jumpToTime(3)}
-                    className="rounded bg-white/10 px-2 py-1 text-stone-300 hover:bg-white/20 transition"
+                    className={videoChip}
                   >
                     00:03 Surface Scan
                   </button>
                   <button
+                    type="button"
                     onClick={() => jumpToTime(6)}
-                    className="rounded bg-white/10 px-2 py-1 text-stone-300 hover:bg-white/20 transition"
+                    className={videoChip}
                   >
                     00:06 Marble Slab Trial
                   </button>
                   <button
+                    type="button"
                     onClick={() => jumpToTime(9)}
-                    className="rounded bg-white/10 px-2 py-1 text-stone-300 hover:bg-white/20 transition"
+                    className={videoChip}
                   >
                     00:09 Side-by-Side
                   </button>
@@ -294,8 +315,10 @@ export function DemosPage() {
                   {[0.75, 1, 1.25].map((speed) => (
                     <button
                       key={speed}
+                      type="button"
                       onClick={() => handleSpeedChange(speed)}
-                      className={`rounded px-2 py-1 text-xs font-medium transition ${
+                      aria-pressed={playbackSpeed === speed}
+                      className={`rounded px-2 py-1 text-xs font-medium transition-[background-color,color,transform] duration-150 active:scale-95 ${
                         playbackSpeed === speed
                           ? "bg-clay-500 text-white"
                           : "bg-white/10 text-stone-300 hover:bg-white/20"
@@ -308,10 +331,16 @@ export function DemosPage() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* 4 Pillars of Verification */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <motion.div
+          className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          variants={staggerContainer(0.08)}
+          initial="hidden"
+          whileInView="show"
+          viewport={revealViewport}
+        >
           {[
             {
               title: "Fixed Architecture",
@@ -334,21 +363,25 @@ export function DemosPage() {
               desc: "Realistic grout thickness and alignment previewed before the mason cuts the first piece.",
             },
           ].map((pillar) => (
-            <div
+            <motion.div
               key={pillar.title}
-              className="rounded-2xl border border-stone-200 bg-white p-5 shadow-soft transition hover:shadow-md"
+              variants={staggerItem}
+              {...hoverLift}
+              className="group rounded-2xl border border-stone-200 bg-white p-5 shadow-soft transition-[box-shadow,border-color] duration-300 hover:border-sage-400/70 hover:shadow-lift"
             >
-              <span className="text-2xl">{pillar.icon}</span>
+              <span className="inline-block text-2xl transition-transform duration-300 ease-out-quint group-hover:-translate-y-0.5 group-hover:scale-110" aria-hidden="true">
+                {pillar.icon}
+              </span>
               <h3 className="mt-3 font-semibold text-stone-900">{pillar.title}</h3>
-              <p className="mt-1 text-xs text-stone-500 leading-relaxed">{pillar.desc}</p>
-            </div>
+              <p className="mt-1 text-xs leading-relaxed text-stone-500">{pillar.desc}</p>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* Scenario Breakdown / Multi-Space Showcase */}
       <section className="container-page mt-20">
-        <div className="text-center max-w-2xl mx-auto">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <Badge tone="clay">Surface Versatility</Badge>
           <h2 className="mt-3 font-display text-3xl font-semibold text-stone-900 sm:text-4xl">
             A Trial Room For Every Surface in Your Home
@@ -356,36 +389,54 @@ export function DemosPage() {
           <p className="mt-3 text-stone-600">
             From compact bathroom renovations to full villa exterior cladding, see how TileRoom handles diverse surfaces with pinpoint accuracy.
           </p>
-        </div>
+        </Reveal>
 
         {/* Scenario Selector Tabs */}
-        <div className="mt-8 flex flex-wrap justify-center gap-2">
+        <Reveal className="mt-8 flex flex-wrap justify-center gap-2" delay={0.1}>
           {DEMO_SCENARIOS.map((scenario) => (
-            <button
+            <motion.button
               key={scenario.id}
+              type="button"
               onClick={() => setSelectedScenario(scenario.id)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              aria-pressed={selectedScenario === scenario.id}
+              whileTap={{ scale: 0.95 }}
+              className={`relative isolate rounded-full border px-4 py-2 text-sm font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500 ${
                 selectedScenario === scenario.id
-                  ? "bg-sage-800 text-white shadow-md"
-                  : "bg-surface-card text-ink-secondary border border-hairline hover:bg-white hover:text-ink"
+                  ? "border-sage-800 text-white"
+                  : "border-hairline bg-surface-card text-ink-secondary hover:bg-white hover:text-ink"
               }`}
             >
+              {selectedScenario === scenario.id && (
+                <motion.span
+                  layoutId="demo-scenario-pill"
+                  className="absolute -inset-px -z-10 rounded-full bg-sage-800 shadow-md"
+                  transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  aria-hidden="true"
+                />
+              )}
               {scenario.title}
-            </button>
+            </motion.button>
           ))}
-        </div>
+        </Reveal>
 
         {/* Active Scenario Detail Card */}
-        <div className="mt-8">
+        <Reveal className="mt-8" delay={0.15}>
           <Card className="overflow-hidden border-hairline bg-surface-card shadow-lg">
-            <CardBody className="p-8">
-              <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
-                <div className="lg:col-span-5">
-                  <div className="flex items-center gap-2">
+            <CardBody className="p-5 sm:p-8">
+              <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={currentScenario.id}
+                className="grid gap-8 lg:grid-cols-12 lg:items-center"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE_OUT } }}
+                exit={{ opacity: 0, y: -8, transition: { duration: 0.16, ease: EASE_IN } }}
+              >
+                <div className="min-w-0 lg:col-span-5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-md bg-clay-100 px-2.5 py-1 text-xs font-semibold text-clay-800">
                       {currentScenario.category}
                     </span>
-                    <span className="text-xs text-stone-400">Target Surface:</span>
+                    <span className="text-xs text-stone-500">Target Surface:</span>
                     <span className="text-xs font-medium text-stone-700">{currentScenario.surface}</span>
                   </div>
 
@@ -400,19 +451,19 @@ export function DemosPage() {
                   </p>
 
                   <div className="mt-6 border-t border-stone-100 pt-5">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-stone-500">
                       Verification Checklist
                     </h4>
-                    <ul className="mt-3 space-y-2">
+                    <motion.ul className="mt-3 space-y-2" variants={staggerContainer(0.06, 0.15)} initial="hidden" animate="show">
                       {currentScenario.keyHighlights.map((hl, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-stone-700">
+                        <motion.li key={i} variants={staggerItem} className="flex items-start gap-2 text-xs text-stone-700">
                           <svg className="h-4 w-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                           </svg>
                           <span>{hl}</span>
-                        </li>
+                        </motion.li>
                       ))}
-                    </ul>
+                    </motion.ul>
                   </div>
 
                   <div className="mt-8">
@@ -424,9 +475,9 @@ export function DemosPage() {
                   </div>
                 </div>
 
-                <div className="lg:col-span-7">
+                <div className="min-w-0 lg:col-span-7">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-hairline bg-surface-sage/50 p-4 shadow-sm">
+                    <div className="rounded-2xl border border-hairline bg-surface-sage/50 p-4 shadow-sm transition-transform duration-300 ease-out-quint hover:-translate-y-0.5">
                       <div className="flex items-center justify-between text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-2">
                         <span>Current Space</span>
                         <span className="rounded bg-surface-card px-1.5 py-0.5 text-[10px] text-ink-secondary font-bold">Before</span>
@@ -439,7 +490,7 @@ export function DemosPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-champagne-300/80 bg-surface-card p-4 shadow-sm">
+                    <div className="rounded-2xl border border-champagne-300/80 bg-surface-card p-4 shadow-sm transition-[transform,box-shadow] duration-300 ease-out-quint hover:-translate-y-0.5 hover:shadow-lift">
                       <div className="flex items-center justify-between text-xs font-semibold text-sage-800 uppercase tracking-wider mb-2">
                         <span>Virtual Preview</span>
                         <span className="rounded bg-champagne-200 px-1.5 py-0.5 text-[10px] text-sage-900 font-bold">TileRoom</span>
@@ -453,15 +504,16 @@ export function DemosPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
+              </AnimatePresence>
             </CardBody>
           </Card>
-        </div>
+        </Reveal>
       </section>
 
       {/* Comparison: Traditional vs TileRoom */}
       <section className="container-page mt-24">
-        <div className="on-light relative overflow-hidden rounded-3xl bg-surface-limestone p-6 text-ink sm:p-12">
+        <Reveal className="on-light relative isolate overflow-hidden rounded-3xl bg-surface-limestone p-6 text-ink sm:p-12">
           <TileScene scene="plank" className="absolute inset-0 h-full w-full" />
           <div className="absolute inset-0 bg-surface-card/60" />
           <div className="relative">
@@ -478,7 +530,13 @@ export function DemosPage() {
           </div>
 
           <div className="mt-10 grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-red-500/20 bg-red-950/20 p-6">
+            <motion.div
+              className="rounded-2xl border border-red-500/20 bg-red-950/20 p-6"
+              initial={{ opacity: 0, x: -24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={revealViewport}
+              transition={{ duration: 0.6, delay: 0.15, ease: EASE_OUT }}
+            >
               <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
                 <span>✕</span> Traditional Guesswork
               </div>
@@ -500,9 +558,15 @@ export function DemosPage() {
                   <span>Extremely expensive tile removal, wall repair, and re-purchase</span>
                 </li>
               </ul>
-            </div>
+            </motion.div>
 
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6">
+            <motion.div
+              className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6"
+              initial={{ opacity: 0, x: 24 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={revealViewport}
+              transition={{ duration: 0.6, delay: 0.25, ease: EASE_OUT }}
+            >
               <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
                 <span>✓</span> TileRoom Virtual Trial Room
               </div>
@@ -524,15 +588,21 @@ export function DemosPage() {
                   <span>Total decision confidence before physical work begins</span>
                 </li>
               </ul>
-            </div>
+            </motion.div>
           </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* CTA Footer Section */}
       <section className="container-page mt-20">
-        <div className="rounded-3xl border border-stone-200 bg-white p-8 sm:p-12 text-center shadow-lg">
+        <motion.div
+          className="rounded-3xl border border-stone-200 bg-white p-6 text-center shadow-lg sm:p-12"
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={revealViewport}
+          transition={{ duration: 0.65, ease: EASE_OUT }}
+        >
           <h2 className="font-display text-3xl font-semibold text-stone-900 sm:text-4xl">
             Don't Buy Tiles Blindly. Try Them in Your Space First.
           </h2>
@@ -551,7 +621,7 @@ export function DemosPage() {
               </Button>
             </Link>
           </div>
-        </div>
+        </motion.div>
       </section>
     </div>
   );

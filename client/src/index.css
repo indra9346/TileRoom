@@ -38,7 +38,80 @@
   :focus-visible {
     outline: 2px solid theme("colors.clay.500");
     outline-offset: 2px;
+    transition: outline-offset 0.15s ease-out;
   }
+  ::selection {
+    background-color: rgba(214, 188, 141, 0.45);
+    color: #303B33;
+  }
+  img {
+    /* Long words / URLs in user content never push a card wider than the viewport. */
+    max-width: 100%;
+  }
+  p,
+  li,
+  td,
+  dd {
+    overflow-wrap: break-word;
+  }
+}
+
+@layer components {
+  /* Shimmering skeleton: a light band sweeps across a muted block. Only the
+     pseudo-element's transform animates, so it's compositor-only. */
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+    animation: shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  /* Animated focus ring for text fields: a soft champagne halo eases in. */
+  .field-focus {
+    transition-property: border-color, box-shadow, background-color;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .field-focus:hover:not(:disabled) {
+    border-color: #B6C3B9;
+  }
+  .field-focus:focus-visible,
+  .field-focus:focus {
+    outline: none;
+    border-color: #C4A873;
+    box-shadow: 0 0 0 4px rgba(196, 168, 115, 0.22);
+  }
+
+  /* Underline that draws in from the left on hover — for inline text links. */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    background-size: 100% 1px;
+  }
+
+  /* Thin, branded scrollbars inside scrolling panels (tables, drawers, modals). */
+  .scroll-soft {
+    scrollbar-width: thin;
+    scrollbar-color: #D8DED5 transparent;
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 @layer utilities {
@@ -122,4 +195,28 @@
 @media (prefers-reduced-motion: reduce) {
   .room-floor,
   .room-light { animation: none; }
+}
+
+/* Global reduced-motion fallback: CSS transitions/animations collapse to an
+   instant change (framer-motion is handled by <MotionConfig reducedMotion="user">
+   in App.tsx). Spinners keep turning slowly — they communicate "still working". */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-spin {
+    animation-duration: 1.8s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .skeleton-shimmer::after {
+    animation: none !important;
+    opacity: 0;
+  }
 }

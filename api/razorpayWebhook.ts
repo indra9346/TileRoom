@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyWebhookSignature, type RazorpayWebhookEvent } from "../server/billing/razorpay.js";
-import { applyPaidPayment, markPaymentFailed, applyRefund, recordWebhookEventOnce } from "../server/db/billing.js";
+import { applyPaidPayment, markPaymentFailed, applyRefund, recordWebhookEventOnce, markWebhookEventProcessed, forgetWebhookEvent } from "../server/db/billing.js";
 import { apiLogger } from "../server/lib/logger.js";
 
 /**
@@ -89,9 +89,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
   } catch (err) {
     apiLogger.error("razorpay webhook processing failed", { operation: "razorpayWebhook", eventType: event.event, errorCategory: err instanceof Error ? err.message : "unknown" });
-    // Still 200: Razorpay would otherwise retry indefinitely. The failure is logged for an operator
-    // to investigate; recordWebhookEventOnce already prevents this exact event from being reprocessed.
+    // Forget the event and answer 500 so Razorpay redelivers it (it retries with back-off for a bounded
+    // period). Replaying is safe: the ledger RPCs are idempotent per payment / refund id.
+    if (eventId) await forgetWebhookEvent(eventId);
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Webhook processing failed; it will be retried." } });
+    return;
   }
 
+  if (eventId) await markWebhookEventProcessed(eventId);
   res.status(200).json({ received: true });
 }

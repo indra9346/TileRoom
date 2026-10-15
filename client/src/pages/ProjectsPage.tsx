@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,6 +15,7 @@ import { deleteRoom } from "@/api/rooms";
 import { deleteProject } from "@/api/projectsRooms";
 
 import { PageBanner } from "@/components/ui/PageBanner";
+import { EASE_IN, EASE_OUT } from "@/components/ui/motion";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -101,7 +103,17 @@ export function ProjectsPage() {
         {!error && projects === null && (
           <div className="space-y-6">
             {Array.from({ length: 2 }).map((_, i) => (
-              <Skeleton key={i} className="h-64 w-full" />
+              <div key={i} className="rounded-2xl border border-hairline bg-surface-card p-5 shadow-soft" aria-hidden="true">
+                <div className="flex items-center justify-between gap-4">
+                  <Skeleton className="h-6 w-48 max-w-[60%]" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {Array.from({ length: 4 }).map((__, j) => (
+                    <Skeleton key={j} className="aspect-[4/3] w-full rounded-2xl" />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -118,17 +130,25 @@ export function ProjectsPage() {
           />
         )}
 
-        {!error &&
-          projects?.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              rooms={roomsByProject[project.id]}
-              loadingRooms={loadingRoomsFor.has(project.id)}
-              onDeleteProject={(p) => setPendingDelete({ kind: "project", project: p })}
-              onDeleteRoom={(room) => setPendingDelete({ kind: "room", room, projectId: project.id })}
-            />
-          ))}
+        <AnimatePresence initial={false}>
+          {!error &&
+            projects?.map((project, i) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: Math.min(i, 6) * 0.07, ease: EASE_OUT } }}
+                exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.22, ease: EASE_IN } }}
+              >
+                <ProjectCard
+                  project={project}
+                  rooms={roomsByProject[project.id]}
+                  loadingRooms={loadingRoomsFor.has(project.id)}
+                  onDeleteProject={(p) => setPendingDelete({ kind: "project", project: p })}
+                  onDeleteRoom={(room) => setPendingDelete({ kind: "room", room, projectId: project.id })}
+                />
+              </motion.div>
+            ))}
+        </AnimatePresence>
       </div>
       <ConfirmDialog
         open={pendingDelete !== null}

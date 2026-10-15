@@ -1,7 +1,9 @@
+import { motion } from "framer-motion";
 import type { Project, RoomUpload } from "@/api/types";
 import { Card, CardBody } from "@/components/ui/Card";
 import { RoomCard } from "./RoomCard";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { staggerContainer } from "@/components/ui/motion";
 
 export function ProjectCard({
   project,
@@ -19,15 +21,15 @@ export function ProjectCard({
   return (
     <Card>
       <CardBody>
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-xl text-stone-900">{project.name}</h3>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h3 className="min-w-0 break-words font-display text-xl text-stone-900">{project.name}</h3>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-stone-400">Created {new Date(project.createdAt).toLocaleDateString()}</span>
+            <span className="text-xs text-stone-500">Created {new Date(project.createdAt).toLocaleDateString()}</span>
             {onDeleteProject && (
               <button
                 type="button"
                 onClick={() => onDeleteProject(project)}
-                className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 hover:bg-red-50 hover:text-red-700"
+                className="rounded-lg px-2.5 py-1.5 text-sm text-stone-500 transition-[background-color,color,transform] duration-200 hover:bg-red-50 hover:text-red-700 active:scale-95"
               >
                 Delete project
               </button>
@@ -39,17 +41,24 @@ export function ProjectCard({
           {loadingRooms ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-[4/3] w-full" />
+                <Skeleton key={i} className="aspect-[4/3] w-full rounded-2xl" />
               ))}
             </div>
           ) : !rooms || rooms.length === 0 ? (
-            <p className="text-sm text-stone-500">No rooms uploaded to this project yet.</p>
+            <p className="animate-fade-up rounded-xl border border-dashed border-stone-300 bg-surface-app/60 px-4 py-5 text-center text-sm text-stone-500">
+              No rooms uploaded to this project yet.
+            </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <motion.div
+              className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+              variants={staggerContainer(0.06)}
+              initial="hidden"
+              animate="show"
+            >
               {rooms.map((room) => (
                 <RoomCard key={room.id} room={room} onDelete={onDeleteRoom} />
               ))}
-            </div>
+            </motion.div>
           )}
         </div>
       </CardBody>

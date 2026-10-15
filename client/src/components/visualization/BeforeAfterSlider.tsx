@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 
 interface BeforeAfterSliderProps {
   /** Optional. When omitted, the same viewer displays the result image alone. */
@@ -172,6 +173,8 @@ export function BeforeAfterSlider({
   const imageStyle: React.CSSProperties = {
     transform: imageTransform,
     transformOrigin: "center center",
+    // Button / ctrl-wheel zoom glides; a live pan drag follows the finger 1:1.
+    transition: pointerModeRef.current === "pan" ? "none" : "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
   };
 
   // Kept inside the frame at both ends so the handle is never half cut off when the divider sits at 0% or 100%.
@@ -187,7 +190,7 @@ export function BeforeAfterSlider({
       >
       <div
         ref={containerRef}
-        className={`relative max-w-full overflow-hidden rounded-2xl bg-stone-100 ${
+        className={`relative isolate max-w-full overflow-hidden rounded-2xl bg-stone-100 shadow-soft ${
           zoom > MIN_ZOOM ? "cursor-grab touch-none active:cursor-grabbing" : showComparison ? "cursor-col-resize touch-none" : ""
         }`}
         style={{
@@ -235,28 +238,50 @@ export function BeforeAfterSlider({
 
         {beforeSrc ? (
           <>
-            <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+            <motion.div
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
+            >
               Before
-            </div>
-            <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
+            >
               After
-            </div>
+            </motion.div>
             <div
               className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-white shadow"
               style={{ left: `${position}%` }}
             />
             <div className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: handleLeft }}>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg">
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 420, damping: 20, delay: 0.3 }}
+                className="relative isolate flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-2 ring-white/40"
+              >
+                {/* Soft "grab me" pulse around the handle. */}
+                <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-white/50 [animation-duration:2.4s]" aria-hidden="true" />
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M8 5l-6 7 6 7M16 5l6 7-6 7" stroke="#303B33" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              </div>
+              </motion.div>
             </div>
           </>
         ) : (
-          <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm"
+          >
             Visualization
-          </div>
+          </motion.div>
         )}
 
         <div
@@ -270,7 +295,7 @@ export function BeforeAfterSlider({
             title="Zoom out"
             disabled={zoom <= MIN_ZOOM}
             onClick={() => changeZoom(zoom - ZOOM_STEP)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none transition-[background-color,transform] duration-150 hover:bg-white/15 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
           >
             −
           </button>
@@ -283,7 +308,7 @@ export function BeforeAfterSlider({
             title="Zoom in"
             disabled={zoom >= MAX_ZOOM}
             onClick={() => changeZoom(zoom + ZOOM_STEP)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none transition-[background-color,transform] duration-150 hover:bg-white/15 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
           >
             +
           </button>
@@ -294,7 +319,7 @@ export function BeforeAfterSlider({
             title="Reset zoom to 100%"
             disabled={zoom === MIN_ZOOM}
             onClick={() => changeZoom(MIN_ZOOM)}
-            className="rounded-lg px-2.5 py-2 text-xs font-medium transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg px-2.5 py-2 text-xs font-medium transition-[background-color,transform] duration-150 hover:bg-white/15 active:scale-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
           >
             Reset
           </button>
@@ -306,7 +331,7 @@ export function BeforeAfterSlider({
                 aria-label={expanded ? "Minimize viewer" : "Expand viewer"}
                 title={expanded ? "Minimize viewer" : "Expand viewer"}
                 onClick={onToggleExpanded}
-                className="rounded-lg px-2.5 py-2 text-xs font-medium transition-colors hover:bg-white/15"
+                className="rounded-lg px-2.5 py-2 text-xs font-medium transition-[background-color,transform] duration-150 hover:bg-white/15 active:scale-95"
               >
                 {expanded ? "Minimize" : "Expand"}
               </button>
@@ -319,7 +344,12 @@ export function BeforeAfterSlider({
 
   if (expanded) {
     return createPortal(
-      <div className="fixed inset-0 z-[100] flex flex-col bg-stone-950 text-white">
+      <motion.div
+        className="fixed inset-0 z-[100] flex flex-col bg-stone-950 text-white"
+        initial={{ opacity: 0, scale: 0.985 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      >
         <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 sm:h-16 sm:px-6">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold sm:text-base">Your Virtual Preview</p>
@@ -332,7 +362,7 @@ export function BeforeAfterSlider({
               type="button"
               aria-label="Minimize viewer"
               onClick={onToggleExpanded}
-              className="shrink-0 rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+              className="shrink-0 rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white transition-[background-color,transform] duration-150 hover:bg-white/10 active:scale-95"
             >
               Minimize
             </button>
@@ -353,7 +383,7 @@ export function BeforeAfterSlider({
             />
           </label>
         )}
-      </div>,
+      </motion.div>,
       document.body,
     );
   }

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { EASE_IN, EASE_OUT, rowItem, springModal, staggerContainer } from "@/components/ui/motion";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/cn";
 import { groupByDate } from "@/lib/history";
@@ -17,7 +20,12 @@ import {
 import { clearHistory, defaultName, loadHistory, removeEntry, saveEntry, summarize, type CalcEntry } from "@/lib/calcHistory";
 
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
-const field = "w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay-500";
+const field = "field-focus w-full min-w-0 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900";
+/** Card-level entrance used by the calculator's panels. */
+const panelIn = (delay: number) => ({
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.5, delay, ease: EASE_OUT } },
+});
 const label = "mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-500";
 
 // Text boxes hold what the person is typing; empty means "not entered yet", never a silent zero.
@@ -146,7 +154,7 @@ export function CalculatorPage() {
   const unitLabel = unit === "ft" ? "ft" : "m";
 
   return (
-    <PageContainer className="max-w-7xl" compact>
+    <PageContainer className="max-w-7xl pb-28 xl:pb-8" compact>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr]">
         {/* History */}
         {/* min-w-0: a grid/flex item's default min-width:auto refuses to
@@ -159,22 +167,40 @@ export function CalculatorPage() {
               + New
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          <div className="scroll-soft min-h-0 flex-1 overflow-y-auto p-2">
             {history.length === 0 ? (
-              <p className="p-4 text-sm text-stone-500">Saved calculations appear here. Fill in a job and press Save.</p>
+              <p className="animate-fade-up p-4 text-sm text-stone-500">Saved calculations appear here. Fill in a job and press Save.</p>
             ) : (
               groups.map((group) => (
                 <section key={group.label} className="mb-3">
-                  <h3 className="sticky top-0 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{group.label}</h3>
-                  <ul>
+                  <h3 className="sticky top-0 z-10 bg-white/95 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500 backdrop-blur-sm">{group.label}</h3>
+                  <motion.ul variants={staggerContainer(0.04)} initial="hidden" animate="show">
+                    <AnimatePresence initial={false}>
                     {group.items.map((entry) => (
-                      <li key={entry.id} className="group relative">
+                      <motion.li
+                        key={entry.id}
+                        className="group relative"
+                        variants={rowItem}
+                        exit={{ opacity: 0, x: -16, transition: { duration: 0.2, ease: EASE_IN } }}
+                      >
                         <button
                           type="button"
                           onClick={() => openEntry(entry)}
                           aria-current={entry.id === activeId ? "true" : undefined}
-                          className={cn("w-full rounded-xl px-3 py-2.5 pr-10 text-left transition-colors", entry.id === activeId ? "bg-clay-100" : "hover:bg-stone-100")}
+                          className={cn(
+                            "relative isolate w-full rounded-xl px-3 py-2.5 pr-11 text-left transition-[background-color,transform] duration-200 active:scale-[0.99]",
+                            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-champagne-500",
+                            entry.id !== activeId && "hover:bg-stone-100",
+                          )}
                         >
+                          {entry.id === activeId && (
+                            <motion.span
+                              layoutId="calc-history-active"
+                              className="absolute inset-0 -z-10 rounded-xl bg-clay-100 ring-1 ring-inset ring-clay-200"
+                              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                              aria-hidden="true"
+                            />
+                          )}
                           <span className="block truncate text-sm font-medium text-stone-900">{entry.name}</span>
                           <span className="block truncate text-xs text-stone-500">{entry.summary}</span>
                         </button>
@@ -182,20 +208,23 @@ export function CalculatorPage() {
                           type="button"
                           onClick={() => setPendingRemove(entry)}
                           aria-label={`Delete ${entry.name}`}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-2 text-stone-400 hover:bg-red-50 hover:text-red-700 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100"
+                          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-stone-500 transition-[opacity,background-color,color] duration-200 hover:bg-red-50 hover:text-red-700 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                         >
-                          ✕
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
                         </button>
-                      </li>
+                      </motion.li>
                     ))}
-                  </ul>
+                    </AnimatePresence>
+                  </motion.ul>
                 </section>
               ))
             )}
           </div>
           {history.length > 0 && (
             <div className="border-t border-stone-200 p-3">
-              <button type="button" onClick={() => setConfirmClear(true)} className="w-full rounded-lg px-3 py-2 text-sm text-stone-500 hover:bg-red-50 hover:text-red-700">
+              <button type="button" onClick={() => setConfirmClear(true)} className="w-full rounded-lg px-3 py-2 text-sm text-stone-500 transition-[background-color,color,transform] duration-200 hover:bg-red-50 hover:text-red-700 active:scale-[0.98]">
                 Clear all history
               </button>
             </div>
@@ -204,20 +233,20 @@ export function CalculatorPage() {
 
         {/* Calculator */}
         <section className={cn("min-w-0", showHistoryOnPhone && "hidden lg:block")}>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <motion.div className="mb-4 flex flex-wrap items-center justify-between gap-3" {...panelIn(0)}>
+            <div className="min-w-0">
               <h1 className="font-display text-3xl text-stone-900">Tile calculator</h1>
               <p className="mt-1 text-sm text-stone-600">How many tiles, boxes, grout and adhesive a job needs. The answer updates as you type.</p>
             </div>
             <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setShowHistoryOnPhone(true)}>
               History ({history.length})
             </Button>
-          </div>
+          </motion.div>
 
           <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
             <div className="space-y-5">
               {/* Areas */}
-              <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-soft">
+              <motion.div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft sm:p-5" {...panelIn(0.08)}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="font-display text-lg text-stone-900">Areas to tile</h2>
                   <div className="inline-flex rounded-lg border border-stone-300 p-0.5" role="group" aria-label="Measurement unit">
@@ -230,8 +259,19 @@ export function CalculatorPage() {
                           setSaved(false);
                         }}
                         aria-pressed={unit === u}
-                        className={cn("rounded-md px-3 py-1.5 text-sm font-medium", unit === u ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100")}
+                        className={cn(
+                          "relative isolate rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-200",
+                          unit === u ? "text-white" : "text-stone-600 hover:bg-stone-100",
+                        )}
                       >
+                        {unit === u && (
+                          <motion.span
+                            layoutId="calc-unit-pill"
+                            className="absolute inset-0 -z-10 rounded-md bg-stone-900 shadow-sm"
+                            transition={{ type: "spring", stiffness: 480, damping: 34 }}
+                            aria-hidden="true"
+                          />
+                        )}
                         {u === "ft" ? "Feet" : "Metres"}
                       </button>
                     ))}
@@ -239,13 +279,22 @@ export function CalculatorPage() {
                 </div>
 
                 <div className="mt-4 space-y-4">
+                  <AnimatePresence initial={false}>
                   {areas.map((a, i) => (
-                    <div key={a.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
+                    <motion.div
+                      key={a.id}
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1, transition: { duration: 0.35, ease: EASE_OUT } }}
+                      exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.18, ease: EASE_IN } }}
+                      className="rounded-xl border border-stone-200 bg-stone-50 p-3.5 transition-colors duration-200 focus-within:border-champagne-400 focus-within:bg-white"
+                    >
                       <div className="flex items-center gap-2">
                         <input aria-label={`Name of area ${i + 1}`} className={cn(field, "font-medium")} value={a.label} maxLength={40} onChange={(e) => updateArea(a.id, { label: e.target.value })} placeholder="e.g. Bathroom floor" />
                         {areas.length > 1 && (
-                          <button type="button" onClick={() => setAreas((prev) => prev.filter((x) => x.id !== a.id))} aria-label={`Remove ${a.label || `area ${i + 1}`}`} className="rounded-lg px-2.5 py-2 text-stone-500 hover:bg-red-50 hover:text-red-700">
-                            ✕
+                          <button type="button" onClick={() => setAreas((prev) => prev.filter((x) => x.id !== a.id))} aria-label={`Remove ${a.label || `area ${i + 1}`}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-500 transition-[background-color,color,transform] duration-200 hover:bg-red-50 hover:text-red-700 active:scale-90">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
                           </button>
                         )}
                       </div>
@@ -263,8 +312,9 @@ export function CalculatorPage() {
                           <input id={`op-${a.id}`} inputMode="decimal" className={field} value={a.openings} onChange={(e) => updateArea(a.id, { openings: e.target.value })} placeholder="0" />
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
+                  </AnimatePresence>
                 </div>
                 <button
                   type="button"
@@ -273,14 +323,14 @@ export function CalculatorPage() {
                     setSaved(false);
                   }}
                   disabled={areas.length >= 12}
-                  className="mt-3 rounded-lg border border-dashed border-stone-300 px-3.5 py-2 text-sm font-medium text-clay-700 hover:bg-clay-50 disabled:opacity-50"
+                  className="mt-3 rounded-lg border border-dashed border-stone-300 px-3.5 py-2 text-sm font-medium text-clay-700 transition-[background-color,border-color,transform] duration-200 hover:border-clay-400 hover:bg-clay-50 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
                 >
                   + Add another area
                 </button>
-              </div>
+              </motion.div>
 
               {/* Tile */}
-              <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-soft">
+              <motion.div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft sm:p-5" {...panelIn(0.16)}>
                 <h2 className="font-display text-lg text-stone-900">Tile</h2>
                 <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Common sizes">
                   {TILE_PRESETS.map((p) => (
@@ -293,7 +343,11 @@ export function CalculatorPage() {
                         setPerBox(String(p.perBox));
                         setSaved(false);
                       }}
-                      className={cn("rounded-full border px-2.5 py-1 text-xs", tileW === String(p.w) && tileH === String(p.h) ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 text-stone-600 hover:bg-stone-100")}
+                      aria-pressed={tileW === String(p.w) && tileH === String(p.h)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition-[background-color,border-color,color,transform] duration-200 hover:-translate-y-px active:scale-95",
+                        tileW === String(p.w) && tileH === String(p.h) ? "border-stone-900 bg-stone-900 text-white shadow-sm" : "border-stone-300 text-stone-600 hover:border-stone-400 hover:bg-stone-100",
+                      )}
                     >
                       {p.label}
                     </button>
@@ -323,16 +377,26 @@ export function CalculatorPage() {
                     <NumberField id="wp" text="Wastage (%)" value={waste} onChange={(v) => { setWaste(v); setSaved(false); }} />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Result */}
-            <div id="calc-result" className="scroll-mt-24 xl:sticky xl:top-24 xl:self-start">
-              <div className="rounded-2xl border border-teal-400/40 bg-gradient-to-br from-teal-600 via-emerald-600 to-cyan-700 p-5 text-white shadow-xl" aria-live="polite">
-                <h2 className="font-display text-lg">You need</h2>
+            <motion.div id="calc-result" className="scroll-mt-24 xl:sticky xl:top-24 xl:self-start" {...panelIn(0.24)}>
+              <div className="relative overflow-hidden rounded-2xl border border-teal-400/40 bg-gradient-to-br from-teal-600 via-emerald-600 to-cyan-700 p-5 text-white shadow-xl" aria-live="polite">
+                <span aria-hidden="true" className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 animate-float rounded-full bg-white/10 blur-2xl" />
+                <h2 className="relative font-display text-lg text-white">You need</h2>
+                <AnimatePresence mode="wait" initial={false}>
                 {result ? (
-                  <>
-                    <p className="mt-3 text-5xl font-semibold tabular-nums">{result.boxes}</p>
+                  <motion.div
+                    key="result"
+                    className="relative"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } }}
+                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  >
+                    <p className="mt-3 text-5xl font-semibold tabular-nums">
+                      <AnimatedNumber value={result.boxes} />
+                    </p>
                     <p className="text-sm text-teal-50">boxes of {input.piecesPerBox} tiles</p>
 
                     <dl className="mt-5 space-y-2.5 text-sm">
@@ -355,35 +419,59 @@ export function CalculatorPage() {
                         ))}
                       </ul>
                     )}
-                  </>
+                  </motion.div>
                 ) : (
-                  <ul className="mt-3 space-y-1.5 text-sm text-amber-100">
+                  <motion.ul
+                    key="errors"
+                    className="relative mt-3 space-y-1.5 text-sm text-amber-100"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.3 } }}
+                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  >
                     {outcome.ok ? null : outcome.errors.slice(0, 4).map((e) => <li key={e}>• {e}</li>)}
-                  </ul>
+                  </motion.ul>
                 )}
+                </AnimatePresence>
 
-                <Button className="mt-5 w-full bg-white text-stone-900 hover:bg-stone-200" onClick={save} disabled={!result}>
-                  {saved ? "Saved to history ✓" : activeId ? "Update saved calculation" : "Save to history"}
+                <Button className="relative mt-5 w-full bg-white text-stone-900 hover:bg-stone-200" onClick={save} disabled={!result}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={saved ? "saved" : activeId ? "update" : "save"}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      {saved ? "Saved to history ✓" : activeId ? "Update saved calculation" : "Save to history"}
+                    </motion.span>
+                  </AnimatePresence>
                 </Button>
               </div>
               <p className="mt-3 text-xs text-stone-500">
                 Estimates follow standard shop practice. Round up, keep spare boxes from the same batch (colour can vary between batches), and confirm measurements on site. History is saved on this device for your account.
               </p>
-            </div>
+            </motion.div>
           </div>
         </section>
       </div>
 
-      {result && !showHistoryOnPhone && (
-        <button
-          type="button"
-          onClick={() => document.getElementById("calc-result")?.scrollIntoView({ behavior: "smooth" })}
-          className="fixed inset-x-4 bottom-4 z-30 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 px-5 py-3.5 text-left text-white shadow-2xl xl:hidden"
-        >
-          <span className="text-lg font-semibold tabular-nums">{result.boxes} boxes</span>
-          <span className="ml-2 text-sm text-teal-50">· {fmt(result.tilesNeeded, 0)} tiles · tap for details</span>
-        </button>
-      )}
+      <AnimatePresence>
+        {result && !showHistoryOnPhone && (
+          <motion.button
+            key="calc-summary-bar"
+            type="button"
+            onClick={() => document.getElementById("calc-result")?.scrollIntoView({ behavior: "smooth" })}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0, transition: springModal }}
+            exit={{ opacity: 0, y: 40, transition: { duration: 0.2 } }}
+            whileTap={{ scale: 0.98 }}
+            className="fixed inset-x-4 bottom-4 z-30 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 px-5 py-3.5 text-left text-white shadow-2xl ring-1 ring-white/20 xl:hidden"
+          >
+            <span className="text-lg font-semibold tabular-nums">{result.boxes} boxes</span>
+            <span className="ml-2 text-sm text-teal-50">· {fmt(result.tilesNeeded, 0)} tiles · tap for details</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <ConfirmDialog
         open={pendingRemove !== null}
@@ -413,7 +501,7 @@ export function CalculatorPage() {
 
 function NumberField({ id, text, value, onChange, placeholder }: { id: string; text: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label className={label} htmlFor={id}>
         {text}
       </label>

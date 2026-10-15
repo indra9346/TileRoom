@@ -114,6 +114,7 @@ export function loadRazorpayCheckoutScript(): Promise<void> {
  */
 export function openRazorpayCheckout(checkout: CheckoutInfo, userEmail: string | undefined): Promise<{ razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }> {
   return new Promise((resolve, reject) => {
+    let lastFailure: string | null = null;
     if (!window.Razorpay) {
       reject(new Error("Payment widget did not load."));
       return;
@@ -128,9 +129,12 @@ export function openRazorpayCheckout(checkout: CheckoutInfo, userEmail: string |
       prefill: userEmail ? { email: userEmail } : undefined,
       theme: { color: "#1c1917" },
       handler: (response: unknown) => resolve(response as { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }),
-      modal: { ondismiss: () => reject(new Error("Payment cancelled.")) },
+      modal: { ondismiss: () => reject(new Error(lastFailure ?? "Payment cancelled.")) },
     });
-    rzp.on("payment.failed", () => reject(new Error("Payment failed. No charge was made.")));
+    // Not final: the customer may retry inside the same modal, and a later success still resolves.
+    rzp.on("payment.failed", () => {
+      lastFailure = "Payment failed. No charge was made.";
+    });
     rzp.open();
   });
 }

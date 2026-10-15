@@ -13,7 +13,15 @@ import {
   updateVisualizationStatus,
   type VisualizationRow,
 } from "../../server/db/visualizations.js";
-import { createNextGenerationJob, markJobProcessing, markJobCompleted, markJobFailed } from "../../server/db/generationJobs.js";
+import {
+  createNextGenerationJob,
+  discardUnstartedJob,
+  getLatestJobForVisualization,
+  isJobStale,
+  markJobProcessing,
+  markJobCompleted,
+  markJobFailed,
+} from "../../server/db/generationJobs.js";
 import { downloadRoomImage, downloadTileImage, uploadImage, deleteImageQuietly, createSignedUrl } from "../../server/storage/imageStorage.js";
 import { BUCKETS, generatedVisualizationPath } from "../../server/storage/buckets.js";
 import { generateVisualization } from "../../server/ai/generateVisualization.js";
@@ -101,6 +109,13 @@ export default createHandler({ methods: ["POST"], operation: "generateVisualizat
       }));
   }
 
+  // A double-click, a second tab or a client retry while the first request is still talking to the model
+  // must not start a second paid generation. A job stuck past the function limit is dead and may be retried.
+  if (visualization.status === "generating") {
+    const running = await getLatestJobForVisualization(visualization.id);
+    if (running && running.status === "processing" && !isJobStale(running)) throw Errors.generationInProgress();
+  }
+
   // A retry may carry updated instructions; otherwise keep what was stored on the row.
   const requirements = body.requirements ?? visualization.requirements ?? null;
   if (requirements !== visualization.requirements) {
@@ -124,7 +139,9 @@ export default createHandler({ methods: ["POST"], operation: "generateVisualizat
     hold = await holdCreditsForGeneration(user.id, job.id, billingConfig.generationCreditCost);
   } catch (err) {
     const safeMessage = err instanceof Error ? err.message : "Insufficient credits.";
-    await markJobFailed(job.id, safeMessage);
+    // The model was never called, so this must not use up one of the design's limited attempts:
+    // after buying credits the owner can generate the same design again.
+    await discardUnstartedJob(job.id);
     await updateVisualizationStatus(visualization.id, { status: "failed", errorMessage: safeMessage });
     throw err;
   }

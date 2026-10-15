@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/cn";
+import { springSnappy } from "./motion";
 
 type Variant = "primary" | "secondary" | "ghost" | "outline" | "danger";
 type Size = "sm" | "md" | "lg";
@@ -16,11 +17,11 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, Conf
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-stone-900 text-white shadow-sm hover:bg-stone-800 hover:shadow-md disabled:bg-stone-400 disabled:shadow-none",
-  secondary: "bg-clay-100 text-clay-900 hover:bg-clay-200 disabled:bg-stone-100 disabled:text-stone-400",
-  outline: "border border-stone-300 text-stone-900 hover:bg-stone-100 disabled:text-stone-400 disabled:border-stone-200",
+  primary: "bg-stone-900 text-white shadow-sm hover:bg-stone-925 hover:shadow-lift disabled:bg-stone-400 disabled:shadow-none",
+  secondary: "bg-clay-100 text-clay-900 ring-1 ring-inset ring-hairline hover:bg-clay-200 disabled:bg-stone-100 disabled:text-stone-400",
+  outline: "border border-stone-300 bg-white/60 text-stone-900 hover:border-stone-400 hover:bg-white hover:shadow-soft disabled:text-stone-400 disabled:border-stone-200",
   ghost: "text-stone-700 hover:bg-stone-100 disabled:text-stone-400",
-  danger: "bg-red-700 text-white hover:bg-red-800 disabled:bg-red-300",
+  danger: "bg-red-700 text-white shadow-sm hover:bg-red-800 hover:shadow-md disabled:bg-red-300",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -37,10 +38,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <motion.button
       ref={ref}
       disabled={disabled || loading}
-      whileTap={disabled || loading ? undefined : { scale: 0.97 }}
-      transition={{ duration: 0.12 }}
+      whileHover={disabled || loading ? undefined : { y: -1 }}
+      whileTap={disabled || loading ? undefined : { scale: 0.97, y: 0 }}
+      transition={springSnappy}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-medium transition-colors duration-150",
+        "inline-flex select-none items-center justify-center gap-2 font-medium transition-[background-color,border-color,color,box-shadow] duration-200",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500",
         "disabled:cursor-not-allowed",
         variantClasses[variant],

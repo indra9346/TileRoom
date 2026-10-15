@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ProgressSteps, type Step } from "@/components/ui/ProgressSteps";
 import { AnalysisSummary } from "@/components/analysis/AnalysisSummary";
@@ -10,6 +11,14 @@ import { getRoomAnalysis, analyzeRoom } from "@/api/rooms";
 import { friendlyErrorMessage } from "@/api/client";
 import { useWorkflow } from "@/context/WorkflowContext";
 import type { RoomAnalysis } from "@/api/types";
+import { EASE_IN, EASE_OUT, Reveal } from "@/components/ui/motion";
+
+/** Cross-fades between the analysis phases (progress → summary / error). */
+const phaseMotion = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE_OUT } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.18, ease: EASE_IN } },
+};
 
 const ANALYZING_STAGES = ["Uploading room", "Preparing image", "Analyzing room", "Identifying surfaces", "Preparing recommendations"];
 
@@ -84,21 +93,39 @@ export function AnalysisPage() {
 
   return (
     <PageContainer className="max-w-5xl">
-      <h1 className="font-display text-3xl text-stone-900">Room Analysis</h1>
-      <p className="mt-2 text-stone-600">
-        {phase === "done" && wasReused
-          ? "We already have an analysis for this room, so no new AI analysis was needed."
-          : "Our AI is identifying the room type, surfaces, and construction state."}
-      </p>
+      <Reveal immediate>
+        <h1 className="font-display text-3xl text-stone-900">Room Analysis</h1>
+      </Reveal>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={phase === "done" && wasReused ? "reused" : "fresh"}
+          className="mt-2 text-stone-600"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.35, delay: 0.08 } }}
+          exit={{ opacity: 0, transition: { duration: 0.12 } }}
+        >
+          {phase === "done" && wasReused
+            ? "We already have an analysis for this room, so no new AI analysis was needed."
+            : "Our AI is identifying the room type, surfaces, and construction state."}
+        </motion.p>
+      </AnimatePresence>
 
       <div className="mt-8">
+        <AnimatePresence mode="wait" initial={false}>
         {(phase === "checking" || phase === "analyzing") && (
-          <Tile tone="soft" className="mx-auto max-w-2xl p-8">
-            <ProgressSteps steps={steps} />
-          </Tile>
+          <motion.div key="progress" {...phaseMotion}>
+            <Tile tone="soft" className="relative mx-auto max-w-2xl overflow-hidden p-6 sm:p-8">
+              {/* Scanning light — a slow sweep across the card while the AI works. */}
+              <span aria-hidden="true" className="skeleton-shimmer pointer-events-none absolute inset-0 opacity-60" />
+              <div className="relative">
+                <ProgressSteps steps={steps} />
+              </div>
+            </Tile>
+          </motion.div>
         )}
 
         {phase === "error" && error && (
+          <motion.div key="error" {...phaseMotion}>
           <ErrorState
             message={error}
             onRetry={() => {
@@ -117,23 +144,36 @@ export function AnalysisPage() {
               }
             }}
           />
+          </motion.div>
         )}
 
         {phase === "done" && analysis && (
-          <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-            <AnalysisSummary analysis={analysis} />
-            <Tile tone="feature" className="flex h-fit flex-col gap-4 p-6 lg:sticky lg:top-24">
+          <motion.div key="done" {...phaseMotion} className="grid gap-5 lg:grid-cols-[1fr_300px]">
+            <div className="min-w-0">
+              <AnalysisSummary analysis={analysis} />
+            </div>
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.25, ease: EASE_OUT }}
+              className="h-fit lg:sticky lg:top-24"
+            >
+            <Tile tone="feature" className="relative flex flex-col gap-4 overflow-hidden p-6">
+              <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 animate-float rounded-full bg-white/10 blur-2xl" />
               <div>
                 <TileLabel>Next step</TileLabel>
                 <p className="mt-1 font-display text-xl font-semibold text-white">Choose tiles for each area</p>
                 <p className="mt-2 text-sm text-teal-50">Pick which tile goes on which wall, floor or step, and the pattern for each.</p>
               </div>
-              <Button size="lg" className="w-full bg-white text-stone-900 hover:bg-teal-50" onClick={() => navigate(`/tiles/${roomId}`)}>
+              <Button size="lg" className="group w-full bg-white text-stone-900 hover:bg-teal-50" onClick={() => navigate(`/tiles/${roomId}`)}>
                 Open Design Studio
+                <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-1">→</span>
               </Button>
             </Tile>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </PageContainer>
   );

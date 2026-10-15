@@ -22,9 +22,9 @@ export function Tile({ tone = "plain", interactive, className, ...props }: HTMLA
   return (
     <div
       className={cn(
-        "rounded-2xl border p-5 shadow-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]",
+        "rounded-2xl border p-5 shadow-soft",
         tones[tone],
-        interactive && "transition duration-200 hover:-translate-y-0.5 hover:shadow-lg",
+        interactive && "transition-[transform,box-shadow] duration-300 ease-out-quint hover:-translate-y-1 hover:shadow-lift active:translate-y-0 active:scale-[0.99]",
         className,
       )}
       {...props}

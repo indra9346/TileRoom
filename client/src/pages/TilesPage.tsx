@@ -7,10 +7,11 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ProgressSteps, type Step } from "@/components/ui/ProgressSteps";
 import { AreaCard } from "@/components/design/AreaCard";
 import { RoomTemplatePicker } from "@/components/design/RoomTemplatePicker";
+import { CustomTemplatesPanel } from "@/components/design/CustomTemplatesPanel";
 import { TilePickerModal } from "@/components/design/TilePickerModal";
 import { RequirementsInput } from "@/components/visualization/RequirementsInput";
 import { getRoom, getRoomAnalysis } from "@/api/rooms";
-import { getTileRecommendations, searchTiles } from "@/api/tiles";
+import { getTileRecommendations, searchAllTiles } from "@/api/tiles";
 import { generateVisualization } from "@/api/visualizations";
 import { getBillingSummary, getCreditPackages } from "@/api/billing";
 import { ApiClientError, friendlyErrorMessage } from "@/api/client";
@@ -31,6 +32,7 @@ import {
 import type { RoomLayout } from "@/lib/roomLayouts";
 import { TEMPLATES, applyTemplate, ensureFace, faceOfArea, isTemplateId, keptLabels, templateForLayout, toggleFace, type TemplateId } from "@/lib/roomTemplates";
 import type { RoomAnalysis, SurfaceType, Tile } from "@/api/types";
+import { applyCustomTemplate, type CustomTemplate } from "@/lib/customTemplates";
 
 const GENERATION_STAGES = ["Preparing your room", "Placing each tile in its area", "Laying out your patterns", "Rendering realistic lighting", "Finalizing visualization"];
 
@@ -44,10 +46,15 @@ function nextLocation(surface: SurfaceType, areas: DraftArea[]): string {
 export function TilesPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { analysis: cachedAnalysis, selectedTile, setAnalysis } = useWorkflow();
+  const { analysis: workflowAnalysis, selectedTile, setAnalysis } = useWorkflow();
+  // The workflow cache may hold ANOTHER room's analysis (opened from Projects / History); only reuse it for this room.
+  const cachedAnalysis = workflowAnalysis && workflowAnalysis.roomUploadId === roomId ? workflowAnalysis : null;
 
   const [analysis, setLocalAnalysis] = useState<RoomAnalysis | null>(cachedAnalysis);
   const [analysisLoading, setAnalysisLoading] = useState(!cachedAnalysis);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisAttempt, setAnalysisAttempt] = useState(0);
+  const [templateNotice, setTemplateNotice] = useState<string | null>(null);
   const [roomImage, setRoomImage] = useState<string | null>(null);
   const [roomImgError, setRoomImgError] = useState(false);
 
@@ -65,8 +72,8 @@ export function TilesPage() {
   const closedAll = useRef(false);
 
   useEffect(() => {
-    searchTiles({ page: 1, pageSize: 50 })
-      .then((res) => setCatalog(res.tiles))
+    searchAllTiles()
+      .then(setCatalog)
       .catch(() => {
         /* suggestions are optional; the tile picker still works */
       });
@@ -82,7 +89,7 @@ export function TilesPage() {
   const [balance, setBalance] = useState<number | null>(null);
   const [generationCost, setGenerationCost] = useState<number | null>(null);
 
-  useEffect(() => {
+  const refreshCredits = useCallback(() => {
     Promise.all([getBillingSummary(), getCreditPackages()])
       .then(([summary, pkgs]) => {
         setBalance(summary.balance);
@@ -93,10 +100,30 @@ export function TilesPage() {
       });
   }, []);
 
+  // Credits can change in another tab (a purchase) or after a failed attempt: re-read on focus.
+  useEffect(() => {
+    refreshCredits();
+    window.addEventListener("focus", refreshCredits);
+    return () => window.removeEventListener("focus", refreshCredits);
+  }, [refreshCredits]);
+
+  // A generation in flight must not keep ticking or navigate after the owner has left the page.
+  const stageTimerRef = useRef<number | null>(null);
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      if (stageTimerRef.current !== null) window.clearInterval(stageTimerRef.current);
+    };
+  }, []);
+
   // The room's analysis is reused (never re-run): from context if present, otherwise a read-only fetch.
   useEffect(() => {
     if (!roomId || cachedAnalysis) return;
     let cancelled = false;
+    setAnalysisLoading(true);
+    setAnalysisError(null);
     getRoomAnalysis(roomId)
       .then((result) => {
         if (cancelled) return;
@@ -107,12 +134,13 @@ export function TilesPage() {
         setLocalAnalysis(result);
         setAnalysis(result);
       })
+      .catch((err) => !cancelled && setAnalysisError(friendlyErrorMessage(err, "We couldn't load this room's details.")))
       .finally(() => !cancelled && setAnalysisLoading(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, analysisAttempt]);
 
   // The customer's photo stays on screen so the owner can see which wall is which while designing.
   useEffect(() => {
@@ -175,6 +203,35 @@ export function TilesPage() {
 
   const updateArea = useCallback((key: string, next: DraftArea) => setAreas((prev) => prev?.map((a) => (a.key === key ? next : a)) ?? prev), []);
 
+  /** Apply one of the owner's saved templates: its room template, surfaces, patterns, sizes and (still available) tiles. */
+  async function applySaved(saved: CustomTemplate) {
+    // The catalog loads in the background; make sure the template's tiles can be resolved even if it hasn't arrived yet.
+    let tiles = catalog;
+    if (tiles.length === 0) {
+      tiles = await searchAllTiles().catch(() => [] as Tile[]);
+      if (tiles.length > 0) setCatalog(tiles);
+    }
+    const applied = applyCustomTemplate(saved, tiles);
+    // Tiles that no longer suit a surface are left for the owner to re-pick rather than failing on Generate.
+    const areasFit = applied.areas.map((a) => ({ ...a, slots: a.slots.map((t) => (t && tileFitsSurface(t, a.surface) ? t : null)) }));
+    setTemplateId(applied.templateId);
+    setAreas(areasFit);
+    setShowIssues(false);
+    closedAll.current = false;
+    setActiveKey(areasFit[0]?.key ?? null);
+    setTemplateNotice(
+      applied.missingTiles > 0
+        ? `Applied "${saved.name}". ${applied.missingTiles} tile${applied.missingTiles === 1 ? " is" : "s are"} no longer in your catalog: pick a replacement where a slot is empty.`
+        : `Applied "${saved.name}".`,
+    );
+  }
+
+  useEffect(() => {
+    if (!templateNotice) return;
+    const t = window.setTimeout(() => setTemplateNotice(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [templateNotice]);
+
   function changeTemplate(next: TemplateId) {
     setAreas((prev) => applyTemplate(prev ?? [], next, templateId));
     setTemplateId(next);
@@ -233,7 +290,8 @@ export function TilesPage() {
     setGenerationError(null);
     setInsufficientCredits(false);
     setGenerationStage(0);
-    const stageTimer = setInterval(() => setGenerationStage((s) => Math.min(s + 1, GENERATION_STAGES.length - 1)), 3500);
+    const stageTimer = window.setInterval(() => setGenerationStage((s) => Math.min(s + 1, GENERATION_STAGES.length - 1)), 3500);
+    stageTimerRef.current = stageTimer;
 
     try {
       const visualization = await generateVisualization({
@@ -241,10 +299,14 @@ export function TilesPage() {
         design: toPayload(areas, layout),
         ...(requirements.trim().length > 0 ? { requirements: requirements.trim() } : {}),
       });
-      clearInterval(stageTimer);
-      navigate(`/result/${visualization.id}`);
+      window.clearInterval(stageTimer);
+      stageTimerRef.current = null;
+      if (!unmountedRef.current) navigate(`/result/${visualization.id}`);
     } catch (err) {
-      clearInterval(stageTimer);
+      window.clearInterval(stageTimer);
+      stageTimerRef.current = null;
+      if (unmountedRef.current) return;
+      refreshCredits();
       if (err instanceof ApiClientError && err.code === "INSUFFICIENT_CREDITS") setInsufficientCredits(true);
       else setGenerationError(friendlyErrorMessage(err, "We couldn't generate the visualization this time. Please try again."));
       setGenerating(false);
@@ -289,8 +351,18 @@ export function TilesPage() {
         </div>
       )}
 
-      {analysisLoading || areas === null ? (
-        <p className="mt-8 text-stone-400">Loading room details…</p>
+      {analysisError ? (
+        <div className="mt-8">
+          <ErrorState message={analysisError} onRetry={() => setAnalysisAttempt((n) => n + 1)} />
+        </div>
+      ) : analysisLoading || areas === null ? (
+        <div className="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]" aria-busy="true" aria-label="Loading room details">
+          <div className="h-72 animate-pulse rounded-2xl bg-stone-100" />
+          <div className="space-y-4">
+            <div className="h-48 animate-pulse rounded-2xl bg-stone-100" />
+            <div className="h-28 animate-pulse rounded-2xl bg-stone-100" />
+          </div>
+        </div>
       ) : (
         <div className="mt-8 grid gap-8 lg:grid-cols-[320px_1fr]">
           <aside className="lg:sticky lg:top-24 lg:self-start">
@@ -342,6 +414,13 @@ export function TilesPage() {
               onPickFace={pickFace}
               activeAreaKey={activeKey}
             />
+
+            <CustomTemplatesPanel templateId={templateId} areas={areas} onApply={applySaved} />
+            {templateNotice && (
+              <p className="rounded-lg bg-stone-900 px-3.5 py-2.5 text-sm text-white shadow-soft" role="status">
+                {templateNotice}
+              </p>
+            )}
 
             {areas.map((area, i) => (
               <AreaCard

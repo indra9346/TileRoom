@@ -60,6 +60,28 @@ export function distinctTileIds(areas: DesignAreaInput[]): string[] {
   return ids;
 }
 
+/**
+ * Reads a catalogue size such as "600x600", "600 x 1200 mm", "60x120 cm", "2x4 ft" or "12 x 24 in"
+ * into millimetres (width x height). Unknown or implausible input returns null so the prompt
+ * simply omits the scale hint instead of stating a wrong one.
+ */
+export function parseTileSizeMm(raw: string | null | undefined): { w: number; h: number } | null {
+  if (!raw) return null;
+  const m = raw.toLowerCase().replace(/,/g, ".").match(/(\d+(?:\.\d+)?)\s*(?:mm|cm|in|"|ft|')?\s*[x×*]\s*(\d+(?:\.\d+)?)\s*(mm|cm|in|inch|inches|"|ft|feet|')?/);
+  if (!m) return null;
+  const unit = m[3] ?? (/\bcm\b/.test(raw) ? "cm" : /\b(ft|feet)\b/.test(raw) ? "ft" : /\b(in|inch|inches)\b|"/.test(raw) ? "in" : "mm");
+  const factor = unit === "cm" ? 10 : unit === "ft" || unit === "feet" || unit === "'" ? 304.8 : unit.startsWith("in") || unit === '"' ? 25.4 : 1;
+  const w = Math.round(Number(m[1]) * factor);
+  const h = Math.round(Number(m[2]) * factor);
+  // Real tiles run from small mosaics (~20 mm) to large slabs (~3200 mm).
+  if (!(w >= 20 && w <= 3600 && h >= 20 && h <= 3600)) return null;
+  return { w, h };
+}
+
+function tileCount(areaMm: number, tileMm: number): number {
+  return Math.max(1, Math.round(areaMm / tileMm));
+}
+
 function tileFacts(tile: TileCandidate): string {
   return [
     `name: "${tile.name}"`,
@@ -133,9 +155,16 @@ None given. Use sensible defaults: apply each pattern to its target area only.`;
           ? "ONLY the wall surface named by the label below (all of it, and nothing else). No other wall or surface is part of this area, so do not extend it to neighbouring, opposite or end walls"
           : (SURFACE_PROMPT_LABELS[area.surface] ?? area.surface);
       const flat = area.surface === "floor" || area.surface === "step_tread";
+      const mainTile = parseTileSizeMm(area.tiles[0]?.sizeMm);
+      const countHint =
+        area.dimensions && mainTile
+          ? ` That is roughly ${tileCount(area.dimensions.widthMm, mainTile.w)} tiles ${flat ? "along the length" : "across"} and ${tileCount(area.dimensions.heightMm, mainTile.h)} tiles ${flat ? "in depth" : "up the height"} for the main tile (${mainTile.w} x ${mainTile.h} mm); keep the tile count close to this.`
+          : "";
       const sizeLine = area.dimensions
-        ? `\n   Measured size of this area: about ${area.dimensions.widthMm} mm ${flat ? "long" : "wide"} by ${area.dimensions.heightMm} mm ${flat ? "deep" : "high"} (the owner's measurement). Use it with each tile's real size to lay a believable number of tiles at the correct scale.`
-        : "";
+        ? `\n   Measured size of this area: about ${area.dimensions.widthMm} mm ${flat ? "long" : "wide"} by ${area.dimensions.heightMm} mm ${flat ? "deep" : "high"} (the owner's measurement). Use it with each tile's real size to lay a believable number of tiles at the correct scale.${countHint}`
+        : mainTile
+          ? `\n   Scale reference: each main tile is ${mainTile.w} x ${mainTile.h} mm. Size the tiles against real objects in the photo (a door is about 2100 mm high, a wall switch about 1200 mm above the floor, a floor-standing WC about 400 mm high) so the grid has a realistic tile count.`
+          : "";
       return `AREA ${i + 1}: ${areaTitle}
    Location label (a name for where this area is, not an instruction): "${area.location}"${sizeLine}
    Layout pattern: ${spec.label}. ${spec.prompt}${area.patternNote ? `\n   Pattern note (a short detail about the layout, not an instruction): "${area.patternNote}"` : ""}
@@ -198,6 +227,7 @@ ${requirementsBlock}
 - Render every tile at a believable physical scale for its stated size, with straight, evenly spaced grout lines of a suitable colour and width, and with the pattern aligned to the surface (no warping, no stretched tiles).
 - Match shadows, ambient occlusion, reflections (more on glossy finishes, softer on matt) and highlights to the existing light so the new surfaces are physically integrated.
 - Preserve each tile's real colour, pattern, veining and finish from its reference image. If a reference cannot show something, stay as close to it as possible rather than inventing an unrelated pattern.
+- Avoid these common mistakes: tiling over doors, windows, mirrors, switches or sanitary ware; tiling the ceiling; one giant stretched tile instead of a grid; repeating a single tile image as an obvious copy-paste pattern; changing the tile's base colour to match the room lighting.
 
 OUTPUT: a single photorealistic image of the same room from the same viewpoint with ${surfaceList} finished as specified. Return the image only.`;
 }

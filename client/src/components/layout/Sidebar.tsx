@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { SDSIcon } from "@/components/ui/SDSLogo";
 import { DoorNavLink } from "@/components/layout/DoorNavLink";
@@ -40,17 +40,17 @@ export function Sidebar() {
       initial={false}
       animate={{ width: collapsed ? 76 : 240 }}
       transition={{ type: "spring", damping: 28, stiffness: 260 }}
-      className="hidden lg:sticky lg:top-0 lg:z-20 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:border-r lg:border-hairline lg:bg-surface-card"
+      className="hidden lg:sticky lg:top-0 lg:z-20 lg:flex lg:h-screen lg:shrink-0 lg:flex-col lg:overflow-hidden lg:border-r lg:border-hairline lg:bg-surface-card"
     >
       <div className="flex items-center gap-2.5 px-4 py-5">
-        <DoorNavLink to="/" roomLabel="HOME" className="flex shrink-0 items-center" aria-label="TileRoom home">
+        <DoorNavLink to="/" roomLabel="HOME" className="flex shrink-0 items-center rounded-xl transition-transform duration-300 ease-out-quint hover:scale-105 active:scale-95" aria-label="TileRoom home">
           <SDSIcon className="h-9 w-9" />
         </DoorNavLink>
         {!collapsed && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.08 }}
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.08, duration: 0.25 }}
             className="min-w-0 leading-none"
           >
             <p className="truncate font-display text-sm font-bold text-ink">TileRoom</p>
@@ -61,7 +61,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-2.5 py-2">
+      <nav aria-label="Primary" className="scroll-soft flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-2">
         <ul className="flex flex-col gap-1">
           {items.map((item) => (
             <li key={item.to}>
@@ -72,12 +72,12 @@ export function Sidebar() {
                 title={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   cn(
-                    "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    "group relative isolate flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500",
                     collapsed && "justify-center",
                     isActive
-                      ? "bg-surface-sage text-sage-800"
-                      : "text-ink-secondary hover:bg-surface-sage/60 hover:text-ink",
+                      ? "text-sage-800"
+                      : "text-ink-secondary hover:bg-surface-sage/60 hover:text-ink active:scale-[0.98]",
                   )
                 }
               >
@@ -91,15 +91,38 @@ export function Sidebar() {
                     >
                       {item.icon}
                     </span>
-                    {!collapsed && (
-                      <span className={cn("truncate tracking-tight", isActive && "font-semibold")}>{item.label}</span>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {!collapsed && (
+                        <motion.span
+                          key="label"
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0, transition: { delay: 0.06, duration: 0.2 } }}
+                          exit={{ opacity: 0, transition: { duration: 0.08 } }}
+                          className={cn(
+                            "truncate tracking-tight transition-transform duration-200",
+                            isActive ? "font-semibold" : "group-hover:translate-x-0.5",
+                          )}
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                     {isActive && (
-                      <motion.span
-                        layoutId="sidebar-active-pill"
-                        className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-champagne-500"
-                        transition={{ type: "spring", damping: 24, stiffness: 300 }}
-                      />
+                      <>
+                        {/* Sliding sage tile behind the active item, plus the champagne edge pill. */}
+                        <motion.span
+                          layoutId="sidebar-active-bg"
+                          className="absolute inset-0 -z-10 rounded-xl bg-surface-sage ring-1 ring-inset ring-hairline/70"
+                          transition={{ type: "spring", damping: 30, stiffness: 340 }}
+                          aria-hidden="true"
+                        />
+                        <motion.span
+                          layoutId="sidebar-active-pill"
+                          className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-champagne-500"
+                          transition={{ type: "spring", damping: 24, stiffness: 300 }}
+                          aria-hidden="true"
+                        />
+                      </>
                     )}
                   </>
                 )}
@@ -115,7 +138,7 @@ export function Sidebar() {
             type="button"
             title={collapsed ? "Sign out" : undefined}
             className={cn(
-              "mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-sage/60 hover:text-ink",
+              "mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-[background-color,color,transform] duration-200 hover:bg-surface-sage/60 hover:text-ink active:scale-[0.98]",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500",
               collapsed && "justify-center",
             )}
@@ -135,7 +158,7 @@ export function Sidebar() {
             type="button"
             title={collapsed ? "Sign in" : undefined}
             className={cn(
-              "mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-sage/60 hover:text-ink",
+              "mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-[background-color,color,transform] duration-200 hover:bg-surface-sage/60 hover:text-ink active:scale-[0.98]",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500",
               collapsed && "justify-center",
             )}
@@ -152,7 +175,7 @@ export function Sidebar() {
 
         <button
           type="button"
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-sage/60 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-secondary transition-[background-color,color,transform] duration-200 active:scale-[0.98] hover:bg-surface-sage/60 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           onClick={() => setCollapsed((c) => !c)}
         >

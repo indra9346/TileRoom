@@ -70,6 +70,43 @@ export default {
       },
       boxShadow: {
         soft: "0 2px 8px -2px rgba(20, 16, 12, 0.08), 0 8px 24px -8px rgba(20, 16, 12, 0.10)",
+        // Raised state for hover-lifted cards — same hue family as `soft`, just deeper.
+        lift: "0 6px 16px -6px rgba(20, 16, 12, 0.12), 0 18px 40px -14px rgba(20, 16, 12, 0.18)",
+        glow: "0 0 0 4px rgba(196, 168, 115, 0.22)",
+      },
+      // `group-hover:scale-115` is used by the nav icons (lib/navItems.tsx) but
+      // isn't in Tailwind's default scale — without this it silently did nothing.
+      scale: {
+        "102": "1.02",
+        "115": "1.15",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-quint": "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      keyframes: {
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+      },
+      animation: {
+        shimmer: "shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+        float: "float 6s ease-in-out infinite",
+        "fade-up": "fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in": "fade-in 0.45s ease-out both",
       },
     },
   },

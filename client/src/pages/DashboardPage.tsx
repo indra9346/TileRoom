@@ -12,27 +12,22 @@ import { PageBanner } from "@/components/ui/PageBanner";
 import { Tile, TileLabel, type TileTone } from "@/components/ui/Tile";
 import { friendlyErrorMessage } from "@/api/client";
 import { getBillingSummary, getCreditTransactions, type BillingSummary, type CreditTransaction } from "@/api/billing";
+import { Reveal, hoverLift, rowItem, staggerContainer, staggerItem } from "@/components/ui/motion";
 
 /** Cards count in one after another, like the stats being tallied up. */
-const statGridVariants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.07 } },
-};
-const statCardVariants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-};
+const statGridVariants = staggerContainer(0.08, 0.1);
+const statCardVariants = staggerItem;
 
 function MetricTile({ title, items, tone, note, className }: { title: string; items: Array<[string, string | number]>; tone: TileTone; note?: string; className?: string }) {
   return (
-    <motion.div variants={statCardVariants} className={className}>
-      <Tile tone={tone} className="h-full">
+    <motion.div variants={statCardVariants} {...hoverLift} className={className}>
+      <Tile tone={tone} className="h-full transition-shadow duration-300 hover:shadow-lift">
         <TileLabel>{title}</TileLabel>
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
           {items.map(([label, value]) => (
-            <div key={label}>
+            <div key={label} className="min-w-0">
               <dt className="text-xs text-stone-500">{label}</dt>
-              <dd className="font-display text-2xl text-stone-900">{typeof value === "number" ? <AnimatedNumber value={value} /> : value}</dd>
+              <dd className="break-words font-display text-2xl tabular-nums text-stone-900">{typeof value === "number" ? <AnimatedNumber value={value} /> : value}</dd>
             </div>
           ))}
         </dl>
@@ -97,30 +92,38 @@ export function DashboardPage() {
       />
 
       {!summary ? (
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+        <div className="mt-8 grid gap-4 lg:grid-cols-6" aria-busy="true" aria-label="Loading dashboard">
+          <Skeleton className="h-56 rounded-2xl lg:col-span-3 lg:row-span-2 lg:h-auto" />
+          <Skeleton className="h-36 rounded-2xl lg:col-span-3" />
+          <Skeleton className="h-36 rounded-2xl lg:col-span-3" />
+          <Skeleton className="h-32 rounded-2xl lg:col-span-6" />
         </div>
       ) : (
         <>
           {/* Bento layout: one big balance tile, then grouped metric tiles of different widths */}
           <motion.div className="mt-8 grid gap-4 lg:grid-cols-6" variants={statGridVariants} initial="hidden" animate="show">
             <motion.div variants={statCardVariants} className="lg:col-span-3 lg:row-span-2">
-              <Tile tone="feature" className="flex h-full flex-col justify-between gap-6 p-6 sm:p-7">
-                <div>
+              <Tile tone="feature" className="relative flex h-full flex-col justify-between gap-6 overflow-hidden p-6 sm:p-7">
+                {/* Slow ambient glow drifting over the balance tile. */}
+                <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 animate-float rounded-full bg-white/10 blur-3xl" />
+                <div className="relative">
                   <TileLabel>Available trial balance</TileLabel>
-                  <p className="mt-2 font-display text-5xl font-bold text-white sm:text-6xl">
+                  <p className="mt-2 font-display text-5xl font-bold tabular-nums text-white sm:text-6xl">
                     <AnimatedNumber value={summary.balance} />
                   </p>
                   <p className="mt-1 text-sm text-teal-50">credits</p>
                   {summary.balance <= 20 && (
-                    <p className="mt-3 inline-block rounded-lg bg-white/20 px-3 py-1.5 text-sm font-medium text-white">
+                    <motion.p
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 20, delay: 0.6 }}
+                      className="mt-3 inline-block rounded-lg bg-white/20 px-3 py-1.5 text-sm font-medium text-white"
+                    >
                       {summary.balance === 0 ? "You've used all available credits." : "Your credits are running low."}
-                    </p>
+                    </motion.p>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="relative flex flex-wrap gap-3">
                   <Link to="/credits">
                     <Button size="lg" className="bg-white text-stone-900 hover:bg-teal-50">
                       Top up balance
@@ -140,41 +143,37 @@ export function DashboardPage() {
             <MetricTile className="lg:col-span-6" tone="sun" title="Payments & passes" items={[["Total paid", `₹${(summary.payments.paidPaise / 100).toLocaleString()}`], ["Successful", summary.payments.paid], ["Pending", summary.payments.pending], ["Failed", summary.payments.failed]]} />
           </motion.div>
 
-          <section className="mt-10">
-            <div className="flex items-center justify-between">
+          <Reveal as="section" className="mt-10">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-lg text-stone-900">Recent transactions</h2>
-              <Link to="/credits" className="text-sm font-medium text-clay-700 hover:underline">
-                View all
+              <Link to="/credits" className="group inline-flex items-center gap-1 text-sm font-medium text-clay-700 transition-colors hover:text-clay-800">
+                <span className="link-underline">View all</span>
+                <span aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
               </Link>
             </div>
             {transactions.length === 0 ? (
               <Card className="mt-3">
-                <p className="px-4 py-6 text-center text-sm text-stone-400">No transactions yet.</p>
+                <p className="px-4 py-6 text-center text-sm text-stone-500">No transactions yet.</p>
               </Card>
             ) : (
               <>
                 {/* Phone: a stacked list of cards — a 6-column table forced
                     into a narrow viewport is unreadable even with scroll. */}
-                <ul className="mt-3 space-y-2.5 sm:hidden">
-                  {transactions.map((t, i) => (
-                    <motion.li
-                      key={t.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: i * 0.03, ease: "easeOut" }}
-                    >
+                <motion.ul className="mt-3 space-y-2.5 sm:hidden" variants={staggerContainer(0.05)} initial="hidden" whileInView="show" viewport={{ once: true }}>
+                  {transactions.map((t) => (
+                    <motion.li key={t.id} variants={rowItem}>
                       <Card className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <Badge tone={TX_TONE[t.type] ?? "neutral"}>{t.type.replace(/_/g, " ")}</Badge>
-                            <p className="mt-1.5 text-sm text-stone-700">{t.description}</p>
+                            <p className="mt-1.5 break-words text-sm text-stone-700">{t.description}</p>
                           </div>
                           <p className={`shrink-0 text-right font-display text-lg font-semibold ${t.amount >= 0 ? "text-emerald-700" : "text-stone-900"}`}>
                             {t.amount > 0 ? "+" : ""}
                             {t.amount}
                           </p>
                         </div>
-                        <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-2.5 text-xs text-stone-500">
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-stone-100 pt-2.5 text-xs text-stone-500">
                           <span>{new Date(t.createdAt).toLocaleString()}</span>
                           <span>
                             Balance {t.balanceAfter} · {t.status}
@@ -183,13 +182,13 @@ export function DashboardPage() {
                       </Card>
                     </motion.li>
                   ))}
-                </ul>
+                </motion.ul>
 
                 {/* Tablet and up: the full table */}
-                <Card className="mt-3 hidden overflow-x-auto sm:block">
+                <Card className="scroll-soft mt-3 hidden overflow-x-auto sm:block">
                   <table className="w-full min-w-[560px] text-sm">
                     <thead>
-                      <tr className="border-b border-stone-100 text-left text-xs uppercase tracking-wide text-stone-400">
+                      <tr className="border-b border-stone-100 text-left text-xs uppercase tracking-wide text-stone-500">
                         <th className="px-4 py-3">Date</th>
                         <th className="px-4 py-3">Type</th>
                         <th className="px-4 py-3">Description</th>
@@ -198,14 +197,12 @@ export function DashboardPage() {
                         <th className="px-4 py-3">Status</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {transactions.map((t, i) => (
+                    <motion.tbody variants={staggerContainer(0.04)} initial="hidden" whileInView="show" viewport={{ once: true }}>
+                      {transactions.map((t) => (
                         <motion.tr
                           key={t.id}
-                          className="border-b border-stone-50 last:border-0"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.25, delay: i * 0.03, ease: "easeOut" }}
+                          variants={rowItem}
+                          className="border-b border-stone-100/80 transition-colors duration-200 last:border-0 hover:bg-surface-sage/40"
                         >
                           <td className="whitespace-nowrap px-4 py-3 text-stone-500">{new Date(t.createdAt).toLocaleString()}</td>
                           <td className="px-4 py-3">
@@ -220,12 +217,12 @@ export function DashboardPage() {
                           <td className="px-4 py-3 text-stone-500">{t.status}</td>
                         </motion.tr>
                       ))}
-                    </tbody>
+                    </motion.tbody>
                   </table>
                 </Card>
               </>
             )}
-          </section>
+          </Reveal>
         </>
       )}
     </PageContainer>

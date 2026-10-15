@@ -1,11 +1,22 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams, Navigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TileScene } from "@/components/ui/TileScene";
 import { SDSLogo } from "@/components/ui/SDSLogo";
+import { EASE_IN, EASE_OUT, staggerContainer, staggerItem } from "@/components/ui/motion";
+
+/** Conditional form rows / notices fade + slide in and out. */
+const rowReveal = {
+  initial: { opacity: 0, y: -6 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: EASE_OUT } },
+  exit: { opacity: 0, y: -4, transition: { duration: 0.15, ease: EASE_IN } },
+};
+
+const eyeButtonClass =
+  "absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-stone-400 transition-[color,background-color,transform] duration-150 hover:bg-stone-100 hover:text-stone-700 active:scale-90 focus:outline-none";
 
 /** Self-serve account creation: anyone can register and gets a private workspace (own designs, tiles and credits). */
 const SIGNUP_ENABLED = true;
@@ -117,28 +128,38 @@ export function LoginPage() {
       <div className="relative hidden overflow-hidden bg-[#F1ECE3] lg:block">
         <TileScene scene="terrazzo" className="absolute inset-0 h-full w-full" />
         <div className="relative flex h-full flex-col justify-between p-10 text-stone-900">
-          <div className="flex items-center">
+          <motion.div
+            className="flex items-center"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: EASE_OUT }}
+          >
             <div className="rounded-2xl bg-white/85 px-4 py-3 shadow-lg backdrop-blur-md">
               <SDSLogo size="lg" variant="dark" subtitle="Virtual Trial Room" />
             </div>
-          </div>
+          </motion.div>
 
-          <div className="mb-4 rounded-2xl bg-white/85 p-7 shadow-lg backdrop-blur-md">
+          <motion.div
+            className="mb-4 rounded-2xl bg-white/85 p-7 shadow-lg backdrop-blur-md"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.15, ease: EASE_OUT }}
+          >
             <span className="rounded-full border border-clay-300 bg-clay-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-clay-800">
               The Virtual Trial Room for Your Home
             </span>
             <h2 className="mt-4 font-display text-3xl font-bold leading-tight text-stone-900">
               See your finished room before the first tile is laid.
             </h2>
-            <ul className="mt-6 space-y-3 text-stone-700">
+            <motion.ul className="mt-6 space-y-3 text-stone-700" variants={staggerContainer(0.09, 0.45)} initial="hidden" animate="show">
               {perks.map((p) => (
-                <li key={p} className="flex items-start gap-3">
-                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-clay-600 text-xs font-bold text-white">✓</span>
+                <motion.li key={p} variants={staggerItem} className="flex items-start gap-3">
+                  <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-clay-600 text-xs font-bold text-white shadow-sm">✓</span>
                   <span className="text-sm">{p}</span>
-                </li>
+                </motion.li>
               ))}
-            </ul>
-          </div>
+            </motion.ul>
+          </motion.div>
 
           <p className="text-xs text-stone-700">
             &copy; {new Date().getFullYear()} TileRoom. All rights reserved.
@@ -148,10 +169,10 @@ export function LoginPage() {
 
       <div className="flex items-center justify-center px-5 py-12">
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="w-full max-w-md"
+          transition={{ duration: 0.5, ease: EASE_OUT }}
+          className="w-full min-w-0 max-w-md"
         >
           <div className="mb-8 lg:hidden">
             <SDSLogo size="md" variant="dark" subtitle="Virtual Trial Room" />
@@ -159,7 +180,7 @@ export function LoginPage() {
 
           {/* Mode Switcher Tabs */}
           {SIGNUP_ENABLED && (
-            <div className="mb-6 grid grid-cols-2 rounded-xl bg-stone-100 p-1 border border-stone-200">
+            <div className="mb-6 grid grid-cols-2 rounded-xl border border-stone-200 bg-stone-100 p-1" role="group" aria-label="Choose sign in or create account">
               <button
                 type="button"
                 onClick={() => {
@@ -168,12 +189,19 @@ export function LoginPage() {
                   setInfo(null);
                   setAwaitingConfirmation(false);
                 }}
-                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
-                  mode === "signin"
-                    ? "bg-white text-stone-900 shadow-sm"
-                    : "text-stone-600 hover:text-stone-900"
+                aria-pressed={mode === "signin"}
+                className={`relative isolate rounded-lg py-2.5 text-sm font-semibold transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-champagne-500 ${
+                  mode === "signin" ? "text-stone-900" : "text-stone-600 hover:text-stone-900"
                 }`}
               >
+                {mode === "signin" && (
+                  <motion.span
+                    layoutId="login-mode-pill"
+                    className="absolute inset-0 -z-10 rounded-lg bg-white shadow-sm ring-1 ring-stone-200/60"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    aria-hidden="true"
+                  />
+                )}
                 Sign In
               </button>
               <button
@@ -184,29 +212,46 @@ export function LoginPage() {
                   setInfo(null);
                   setAwaitingConfirmation(false);
                 }}
-                className={`rounded-lg py-2.5 text-sm font-semibold transition ${
-                  mode === "signup"
-                    ? "bg-white text-stone-900 shadow-sm"
-                    : "text-stone-600 hover:text-stone-900"
+                aria-pressed={mode === "signup"}
+                className={`relative isolate rounded-lg py-2.5 text-sm font-semibold transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-champagne-500 ${
+                  mode === "signup" ? "text-stone-900" : "text-stone-600 hover:text-stone-900"
                 }`}
               >
+                {mode === "signup" && (
+                  <motion.span
+                    layoutId="login-mode-pill"
+                    className="absolute inset-0 -z-10 rounded-lg bg-white shadow-sm ring-1 ring-stone-200/60"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    aria-hidden="true"
+                  />
+                )}
                 Create Account
               </button>
             </div>
           )}
 
-          <h1 className="font-display text-3xl font-bold text-stone-900 sm:text-4xl">
-            {mode === "signin" ? "Welcome Back" : "Create Your Account"}
-          </h1>
-          <p className="mt-2 text-stone-600">
-            {mode === "signin"
-              ? "Sign in to continue your virtual trial projects."
-              : "Register your showroom account to start rendering rooms with real tiles."}
-          </p>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={mode}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } }}
+              exit={{ opacity: 0, y: -6, transition: { duration: 0.15, ease: EASE_IN } }}
+            >
+              <h1 className="font-display text-3xl font-bold text-stone-900 sm:text-4xl">
+                {mode === "signin" ? "Welcome Back" : "Create Your Account"}
+              </h1>
+              <p className="mt-2 text-stone-600">
+                {mode === "signin"
+                  ? "Sign in to continue your virtual trial projects."
+                  : "Register your showroom account to start rendering rooms with real tiles."}
+              </p>
+            </motion.div>
+          </AnimatePresence>
 
           <form className="mt-8 space-y-4" onSubmit={onSubmit}>
+            <AnimatePresence initial={false}>
             {mode === "signup" && (
-              <div>
+              <motion.div key="fullName" {...rowReveal}>
                 <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-stone-700">
                   Full Name / Showroom Name
                 </label>
@@ -217,8 +262,9 @@ export function LoginPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                 />
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
@@ -256,15 +302,16 @@ export function LoginPage() {
                   onClick={() => setShowPassword((prev) => !prev)}
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition focus:outline-none"
+                  className={eyeButtonClass}
                 >
                   {showPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                 </button>
               </div>
             </div>
 
+            <AnimatePresence initial={false}>
             {mode === "signup" && (
-              <div>
+              <motion.div key="confirmPassword" {...rowReveal}>
                 <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-stone-700">
                   Confirm Password
                 </label>
@@ -285,35 +332,56 @@ export function LoginPage() {
                     onClick={() => setShowConfirmPassword((prev) => !prev)}
                     tabIndex={-1}
                     aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 transition focus:outline-none"
+                    className={eyeButtonClass}
                   >
                     {showConfirmPassword ? <EyeOffIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
                   </button>
                 </div>
-                {passwordsMatch && (
-                  <p className="mt-1 text-xs text-emerald-600 font-medium">✓ Passwords match</p>
-                )}
-                {passwordsMismatch && (
-                  <p className="mt-1 text-xs text-amber-600 font-medium">Passwords do not match yet</p>
-                )}
-              </div>
+                <AnimatePresence mode="wait" initial={false}>
+                  {passwordsMatch && (
+                    <motion.p key="match" {...rowReveal} className="mt-1 text-xs font-medium text-emerald-700">
+                      ✓ Passwords match
+                    </motion.p>
+                  )}
+                  {passwordsMismatch && (
+                    <motion.p key="mismatch" {...rowReveal} className="mt-1 text-xs font-medium text-amber-700">
+                      Passwords do not match yet
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
+            </AnimatePresence>
 
-            {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700 border border-red-200">
-                {error}
-              </p>
-            )}
-            {info && (
-              <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 border border-emerald-200">
-                {info}
-              </p>
-            )}
+            <AnimatePresence initial={false}>
+              {error && (
+                <motion.p
+                  key="error"
+                  role="alert"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0, x: [0, -5, 5, -3, 3, 0], transition: { duration: 0.4 } }}
+                  exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                >
+                  {error}
+                </motion.p>
+              )}
+              {info && (
+                <motion.p
+                  key="info"
+                  role="status"
+                  {...rowReveal}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800"
+                >
+                  {info}
+                </motion.p>
+              )}
+            </AnimatePresence>
             {awaitingConfirmation && email && (
               <button
                 type="button"
                 onClick={onResend}
-                className="text-sm font-medium text-clay-700 underline underline-offset-2 hover:text-clay-900"
+                className="text-sm font-medium text-clay-700 underline underline-offset-2 transition-colors hover:text-clay-900"
               >
                 Resend confirmation email
               </button>
@@ -329,7 +397,7 @@ export function LoginPage() {
               {mode === "signin" ? "New to TileRoom? " : "Already have an account? "}
               <button
                 type="button"
-                className="font-semibold text-clay-700 hover:underline"
+                className="link-underline font-semibold text-clay-700 transition-colors hover:text-clay-800"
                 onClick={() => {
                   setMode(mode === "signin" ? "signup" : "signin");
                   setError(null);
@@ -343,8 +411,9 @@ export function LoginPage() {
           )}
 
           <div className="mt-8 border-t border-stone-200 pt-6 text-center">
-            <Link to="/" className="text-xs text-stone-500 hover:text-stone-900 transition">
-              ← Back to TileRoom Home
+            <Link to="/" className="group inline-flex items-center gap-1 text-xs text-stone-500 transition-colors hover:text-stone-900">
+              <span aria-hidden="true" className="transition-transform duration-200 group-hover:-translate-x-0.5">←</span>
+              Back to TileRoom Home
             </Link>
           </div>
         </motion.div>

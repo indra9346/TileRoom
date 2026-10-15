@@ -6,7 +6,79 @@ import { buildDesignPrompt, distinctTileIds } from "./prompts/visualizationPromp
 import { withTimeout } from "./timeout.js";
 import { validateRoomImage, validateTileImage } from "./imageValidation.js";
 import { prepareImageForModel } from "./prepareImageForModel.js";
-import type { GenerateVisualizationInput, GeneratedVisualizationResult } from "./types.js";
+import type { GenerateVisualizationInput, GeneratedVisualizationResult, ImageInput } from "./types.js";
+import sharp from "sharp";
+
+/** Aspect ratios the Gemini image models can output (width / height). */
+const SUPPORTED_ASPECT_RATIOS: Array<{ label: string; value: number }> = [
+  { label: "1:1", value: 1 },
+  { label: "2:3", value: 2 / 3 },
+  { label: "3:2", value: 3 / 2 },
+  { label: "3:4", value: 3 / 4 },
+  { label: "4:3", value: 4 / 3 },
+  { label: "4:5", value: 4 / 5 },
+  { label: "5:4", value: 5 / 4 },
+  { label: "9:16", value: 9 / 16 },
+  { label: "16:9", value: 16 / 9 },
+  { label: "21:9", value: 21 / 9 },
+];
+
+/**
+ * The supported output ratio closest to the source photo, compared on a log scale so
+ * portrait and landscape errors weigh the same. Locking the output ratio stops the model
+ * from re-framing (cropping or widening) the customer's room.
+ */
+export function closestAspectRatio(width: number, height: number): string {
+  if (!(width > 0) || !(height > 0)) return "1:1";
+  const target = Math.log(width / height);
+  let best = SUPPORTED_ASPECT_RATIOS[0]!;
+  for (const r of SUPPORTED_ASPECT_RATIOS) {
+    if (Math.abs(Math.log(r.value) - target) < Math.abs(Math.log(best.value) - target)) best = r;
+  }
+  return best.label;
+}
+
+async function imageSize(image: ImageInput): Promise<{ width: number; height: number } | null> {
+  try {
+    const meta = await sharp(image.buffer).metadata();
+    return meta.width && meta.height ? { width: meta.width, height: meta.height } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Brings the generated image back onto the exact pixel grid of the (prepared) source photo
+ * so the before/after slider lines up wall-for-wall. Only applied when the model kept the
+ * framing (aspect within 6 %); a re-framed result is returned untouched rather than distorted.
+ * Never throws: on any decode problem the model output is kept as it is.
+ */
+export async function alignToSource(
+  generated: { buffer: Buffer; mimeType: string },
+  source: { width: number; height: number } | null,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  if (!source) return generated;
+  try {
+    const out = await imageSize({ buffer: generated.buffer, mimeType: generated.mimeType as ImageInput["mimeType"] });
+    if (!out) return generated;
+    if (out.width === source.width && out.height === source.height) return generated;
+    const drift = Math.abs(Math.log(out.width / out.height) - Math.log(source.width / source.height));
+    if (drift > 0.06) return generated;
+    const buffer = await sharp(generated.buffer)
+      .resize({ width: source.width, height: source.height, fit: "fill" })
+      .jpeg({ quality: 92, mozjpeg: true })
+      .toBuffer();
+    return { buffer, mimeType: "image/jpeg" };
+  } catch {
+    return generated;
+  }
+}
+
+/** True when the API rejected the request because of the output image options (older model / API). */
+function isImageConfigRejection(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /aspect.?ratio|image.?config/i.test(message) && /400|invalid|not supported|unsupported/i.test(message);
+}
 
 interface InlineImagePart {
   inlineData?: { mimeType?: string; data?: string };
@@ -29,7 +101,10 @@ function extractGeneratedImage(response: {
   return null;
 }
 
-async function attemptGeneration(input: GenerateVisualizationInput): Promise<GeneratedVisualizationResult> {
+async function attemptGeneration(
+  input: GenerateVisualizationInput,
+  sourceSize: { width: number; height: number } | null,
+): Promise<GeneratedVisualizationResult> {
   const client = getGeminiClient();
   const model = aiConfig.models.visualization;
   // The prompt letters tiles in first-use order; attach the reference photos in that same order.
@@ -37,28 +112,42 @@ async function attemptGeneration(input: GenerateVisualizationInput): Promise<Gen
   const promptText = buildDesignPrompt(input.roomAnalysis, input.areas, input.requirements, undefined, input.roomType, input.layout ?? "open");
   const start = Date.now();
 
-  let response;
-  try {
-    response = await withTimeout(
+  // Each image is preceded by a short caption naming its role, so the model binds
+  // "TILE B" to the right photo instead of guessing from position alone.
+  const parts = [
+    { text: promptText },
+    { text: "Image 1 - SOURCE PHOTO (the customer's room to edit):" },
+    { inlineData: { mimeType: input.roomImage.mimeType, data: input.roomImage.buffer.toString("base64") } },
+    ...orderedImages.flatMap((image, i) => [
+      { text: `Image ${i + 2} - TILE ${"ABCDEFGH"[i] ?? "?"} reference photo (copy its exact colour, pattern and finish):` },
+      { inlineData: { mimeType: image.mimeType, data: image.buffer.toString("base64") } },
+    ]),
+  ];
+  const aspectRatio = sourceSize ? closestAspectRatio(sourceSize.width, sourceSize.height) : undefined;
+
+  const call = (withImageConfig: boolean) =>
+    withTimeout(
       client.models.generateContent({
         model,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: promptText },
-              { inlineData: { mimeType: input.roomImage.mimeType, data: input.roomImage.buffer.toString("base64") } },
-              ...orderedImages.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.buffer.toString("base64") } })),
-            ],
-          },
-        ],
+        contents: [{ role: "user", parts }],
         config: {
           responseModalities: ["IMAGE"],
+          ...(withImageConfig && aspectRatio ? { imageConfig: { aspectRatio } } : {}),
         },
       }),
       aiConfig.timeoutsMs.visualization,
       "generateVisualization",
     );
+
+  let response;
+  try {
+    try {
+      response = await call(true);
+    } catch (err) {
+      // A model/API version without output-ratio support: fall back to the plain request once.
+      if (!aspectRatio || !isImageConfigRejection(err)) throw err;
+      response = await call(false);
+    }
   } catch (err) {
     if (err instanceof Error && err.name === "GeminiTimeoutError") throw err;
     const category = classifyGeminiError(err);
@@ -71,10 +160,11 @@ async function attemptGeneration(input: GenerateVisualizationInput): Promise<Gen
   if (!extracted) {
     throw new GeminiEmptyResponseError("generateVisualization");
   }
+  const aligned = await alignToSource(extracted, sourceSize);
 
   return {
-    imageBuffer: extracted.buffer,
-    mimeType: extracted.mimeType,
+    imageBuffer: aligned.buffer,
+    mimeType: aligned.mimeType,
     model,
     finishReason: extracted.finishReason,
     durationMs: Date.now() - start,
@@ -107,9 +197,10 @@ export async function generateVisualization(rawInput: GenerateVisualizationInput
   const input: GenerateVisualizationInput = { ...rawInput, roomImage, tileImages };
 
   const { roomUploadId, visualizationId, generationJobId } = input.context;
+  const sourceSize = await imageSize(roomImage);
 
   try {
-    const result = await attemptGeneration(input);
+    const result = await attemptGeneration(input, sourceSize);
     aiLogger.info("visualization generation succeeded", {
       operation: "generateVisualization",
       model: result.model,
@@ -142,7 +233,7 @@ export async function generateVisualization(rawInput: GenerateVisualizationInput
     // Single retry, only for transient failures (timeout/rate-limit/upstream).
     // Never retried for empty-response (likely safety block) or validation-shaped errors.
     try {
-      const retryResult = await attemptGeneration(input);
+      const retryResult = await attemptGeneration(input, sourceSize);
       aiLogger.info("visualization generation succeeded on retry", {
         operation: "generateVisualization",
         model: retryResult.model,

@@ -594,6 +594,87 @@ create table if not exists payment_events (
 alter table payment_events enable row level security;
 
 -- ============================================================
+-- 15. design_templates (custom Design Studio templates, see migration 0013)
+-- ============================================================
+create table if not exists design_templates (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  description text,
+  base_template text not null default 'free',
+  areas jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table design_templates add column if not exists description text;
+alter table design_templates add column if not exists base_template text not null default 'free';
+alter table design_templates add column if not exists areas jsonb not null default '[]'::jsonb;
+alter table design_templates add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'design_templates_name_len') then
+    alter table design_templates add constraint design_templates_name_len check (char_length(name) between 1 and 60);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'design_templates_areas_array') then
+    alter table design_templates add constraint design_templates_areas_array check (jsonb_typeof(areas) = 'array');
+  end if;
+end $$;
+
+create index if not exists idx_design_templates_owner on design_templates (owner_id, updated_at desc);
+
+drop trigger if exists trg_design_templates_updated_at on design_templates;
+create trigger trg_design_templates_updated_at
+  before update on design_templates
+  for each row execute function set_updated_at();
+
+alter table design_templates enable row level security;
+
+drop policy if exists "design_templates_select_own" on design_templates;
+create policy "design_templates_select_own" on design_templates
+  for select using (auth.uid() = owner_id);
+
+grant all on design_templates to service_role;
+grant select on design_templates to authenticated;
+revoke insert, update, delete, truncate, trigger, references on design_templates from authenticated, anon;
+revoke all on design_templates from anon;
+
+-- ============================================================
+-- UNIQUENESS THE APPLICATION RELIES ON (heal for databases built before these existed)
+-- The server code depends on these for race safety and upserts:
+--   * room_analyses.room_upload_id            -> one analysis per room (insertAnalysis 23505 path)
+--   * tile_recommendations (analysis, tile, surface) -> upsert onConflict target
+--   * generation_jobs (visualization, attempt) -> no duplicate attempt numbers
+--   * payments.provider_payment_id             -> a provider payment is credited once
+-- Each is created only if missing; if old duplicate rows block it, a NOTICE is raised
+-- instead of failing the whole script (clean the duplicates, then re-run).
+-- ============================================================
+do $$
+begin
+  begin
+    create unique index if not exists uq_room_analyses_room_upload on room_analyses (room_upload_id);
+  exception when unique_violation then
+    raise notice 'room_analyses has duplicate room_upload_id rows; unique index not created';
+  end;
+  begin
+    create unique index if not exists uq_tile_recommendations_analysis_tile_surface on tile_recommendations (room_analysis_id, tile_id, surface);
+  exception when unique_violation then
+    raise notice 'tile_recommendations has duplicate (room_analysis_id, tile_id, surface) rows; unique index not created';
+  end;
+  begin
+    create unique index if not exists uq_generation_jobs_visualization_attempt on generation_jobs (visualization_id, attempt_number);
+  exception when unique_violation then
+    raise notice 'generation_jobs has duplicate (visualization_id, attempt_number) rows; unique index not created';
+  end;
+  begin
+    create unique index if not exists uq_payments_provider_payment on payments (provider_payment_id) where provider_payment_id is not null;
+  exception when unique_violation then
+    raise notice 'payments has duplicate provider_payment_id rows; unique index not created';
+  end;
+end $$;
+
+-- ============================================================
 -- FUNCTIONS & PROCEDURES
 -- ============================================================
 
@@ -880,6 +961,7 @@ grant select on generation_jobs       to authenticated;
 grant select on credit_accounts       to authenticated;
 grant select on credit_transactions   to authenticated;
 grant select on credit_packages       to authenticated;
+grant select on design_templates      to authenticated;
 grant select on payments              to authenticated;
 
 -- Revoke write privileges from authenticated (all writes go through service_role API)
@@ -896,6 +978,7 @@ revoke insert, update, delete on credit_transactions from authenticated;
 revoke insert, update, delete on credit_packages     from authenticated;
 revoke insert, update, delete on payments            from authenticated;
 revoke insert, update, delete on payment_events      from authenticated;
+revoke insert, update, delete on design_templates    from authenticated;
 
 revoke truncate, trigger, references on all tables in schema public from authenticated, anon;
 

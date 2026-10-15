@@ -49,32 +49,39 @@ const WorkflowContext = createContext<WorkflowContextValue | undefined>(undefine
 export function WorkflowProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WorkflowState>(loadInitial);
 
-  const persist = useCallback((next: WorkflowState) => {
-    setState(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // best-effort only — the app still works from in-memory state if storage is unavailable
-    }
+  // Always derived from the LATEST state (functional update), so two setters called back to back
+  // (e.g. setProject then setRoom) both land instead of the second overwriting the first.
+  const update = useCallback((change: (prev: WorkflowState) => WorkflowState) => {
+    setState((prev) => {
+      const next = change(prev);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // best-effort only — the app still works from in-memory state if storage is unavailable
+      }
+      return next;
+    });
   }, []);
 
-  const setProject = useCallback((projectId: string) => persist({ ...state, projectId }), [state, persist]);
+  const setProject = useCallback((projectId: string) => update((s) => ({ ...s, projectId })), [update]);
+  // A new room drops the previous room's analysis, but keeps a tile picked in the catalog ("Try in my space").
   const setRoom = useCallback(
-    (roomUploadId: string) => persist({ ...state, roomUploadId, analysis: null, selectedTile: null, selectedSurfaces: [] }),
-    [state, persist],
+    (roomUploadId: string) => update((s) => (s.roomUploadId === roomUploadId ? s : { ...s, roomUploadId, analysis: null })),
+    [update],
   );
-  const setAnalysis = useCallback((analysis: RoomAnalysis) => persist({ ...state, analysis }), [state, persist]);
+  // An analysis always belongs to its own room.
+  const setAnalysis = useCallback((analysis: RoomAnalysis) => update((s) => ({ ...s, roomUploadId: analysis.roomUploadId, analysis })), [update]);
   const selectTile = useCallback(
     (tile: Tile) => {
       const defaultSurfaces: SurfaceType[] = tile.category === "both" ? ["floor", "wall"] : [tile.category];
-      persist({ ...state, selectedTile: tile, selectedSurfaces: defaultSurfaces });
+      update((s) => ({ ...s, selectedTile: tile, selectedSurfaces: defaultSurfaces }));
     },
-    [state, persist],
+    [update],
   );
-  const setSurfaces = useCallback((selectedSurfaces: SurfaceType[]) => persist({ ...state, selectedSurfaces }), [state, persist]);
+  const setSurfaces = useCallback((selectedSurfaces: SurfaceType[]) => update((s) => ({ ...s, selectedSurfaces })), [update]);
   const reset = useCallback(() => {
-    persist({ projectId: null, roomUploadId: null, analysis: null, selectedTile: null, selectedSurfaces: [] });
-  }, [persist]);
+    update(() => ({ projectId: null, roomUploadId: null, analysis: null, selectedTile: null, selectedSurfaces: [] }));
+  }, [update]);
 
   const value = useMemo(
     () => ({ ...state, setProject, setRoom, setAnalysis, selectTile, setSurfaces, reset }),

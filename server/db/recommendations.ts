@@ -72,7 +72,7 @@ export async function getRecommendationsWithTiles(roomAnalysisId: string): Promi
   const rows = (data ?? []) as unknown as RawRecommendationJoinRow[];
 
   return rows
-    .filter((row): row is RawRecommendationJoinRow & { tiles: NonNullable<RawRecommendationJoinRow["tiles"]> } => Boolean(row.tiles))
+    .filter((row): row is RawRecommendationJoinRow & { tiles: NonNullable<RawRecommendationJoinRow["tiles"]> } => Boolean(row.tiles && row.tiles.is_active))
     .map((row) => {
       const t = row.tiles;
       return {

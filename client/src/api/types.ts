@@ -65,6 +65,12 @@ export interface Tile {
   suitableRooms: RoomType[];
   storagePath: string;
   isActive: boolean;
+  /** Catalog details the server returns; optional because older list shapes omit them. */
+  description?: string | null;
+  tileType?: string | null;
+  pattern?: string | null;
+  stockStatus?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface TileRecommendation {

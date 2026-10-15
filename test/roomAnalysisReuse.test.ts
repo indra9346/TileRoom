@@ -62,6 +62,10 @@ jest.mock("../server/lib/rateLimit", () => ({
 jest.mock("../server/db/analyses", () => ({
   getAnalysisByRoomUploadId: () => getAnalysisImpl(),
   insertAnalysis: insertAnalysisMock,
+  toClientAnalysis: (row: Record<string, unknown>) => {
+    const { rawAiResponse: _raw, ...rest } = row;
+    return rest;
+  },
 }));
 jest.mock("../server/ai/analyzeRoom", () => ({ analyzeRoom: analyzeRoomMock }));
 jest.mock("../server/storage/imageStorage", () => ({ downloadRoomImage: downloadRoomImageMock }));

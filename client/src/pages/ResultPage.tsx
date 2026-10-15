@@ -41,6 +41,11 @@ export function ResultPage() {
   useEffect(() => {
     if (!visualizationId) return;
     let cancelled = false;
+    let polls = 0;
+    let roomLoaded = false;
+    // ~10 minutes at 3 s. The server resolves a killed generation as failed well before that,
+    // so this is only a safety net against polling forever.
+    const MAX_POLLS = 200;
 
     async function load() {
       try {
@@ -52,7 +57,9 @@ export function ResultPage() {
         // visualization itself is public — a signed-out visitor (or anyone
         // other than the owner) simply won't get it back, and that's fine:
         // the page falls back to showing the result image alone below.
-        if (viz.roomUploadId) {
+        // The room photo never changes while polling: fetch it once, not on every poll.
+        if (viz.roomUploadId && !roomLoaded) {
+          roomLoaded = true;
           try {
             const roomData = await getRoom(viz.roomUploadId);
             if (!cancelled) setRoom(roomData);
@@ -61,7 +68,13 @@ export function ResultPage() {
           }
         }
 
+        if (cancelled) return;
         if (viz.status === "pending" || viz.status === "generating") {
+          polls += 1;
+          if (polls >= MAX_POLLS) {
+            setError("This visualization is taking much longer than usual. Refresh the page in a minute to check again.");
+            return;
+          }
           pollTimer.current = setTimeout(load, 3000);
         }
       } catch (err) {
@@ -137,11 +150,13 @@ export function ResultPage() {
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = `visualization-${visualization.id}.png`;
+      const ext = blob.type === "image/jpeg" ? "jpg" : blob.type === "image/webp" ? "webp" : "png";
+      link.download = `tileroom-visualization-${visualization.id}.${ext}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(objectUrl);
+      // Revoke after the browser has started the download (some browsers cancel it if revoked synchronously).
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch {
       setDownloadError("This download link may have expired. Refresh the page and try again.");
     } finally {

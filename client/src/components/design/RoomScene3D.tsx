@@ -159,7 +159,8 @@ export function RoomScene3D({ scene, faces, preview = false, className }: Props)
       scene === "stairs"
         ? STAIRS[role] ?? []
         : role === "backsplash"
-          ? kitchen
+          ? // The kitchen counter zone; a box room draws the same strip for a template zone such as the shower walls.
+            kitchen || (scene === "box" && byRole.has("backsplash"))
             ? [BACKSPLASH]
             : []
           : geometry[role]

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence, MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/context/AuthContext";
 import { WorkflowProvider } from "@/context/WorkflowContext";
 import { Navbar } from "@/components/layout/Navbar";
@@ -15,6 +16,7 @@ import { SmokeEffect } from "@/components/ui/SmokeEffect";
 import { LandingPage } from "@/pages/LandingPage";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PageTransition } from "@/components/ui/motion";
 
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })));
@@ -38,14 +40,31 @@ type IntroPhase = "splash" | "promo" | "doorReveal" | "done";
 
 function PageFallback() {
   return (
-    <div className="mx-auto max-w-5xl space-y-4 px-4 py-16" aria-busy="true" aria-label="Loading page">
-      <Skeleton className="h-10 w-1/2" />
-      <Skeleton className="h-64 w-full" />
+    <div className="container-page space-y-4 py-10 sm:py-14" aria-busy="true" aria-label="Loading page">
+      <Skeleton className="h-56 w-full rounded-3xl sm:h-64" />
+      <Skeleton className="h-8 w-2/3 max-w-md" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-[4/3] w-full rounded-2xl" />
+        ))}
+      </div>
     </div>
   );
 }
 
+/**
+ * Key for the page-transition AnimatePresence. Parameterised routes collapse
+ * to one key per route ("/tiles/:id", "/result/:id"…), so moving between two
+ * rooms or two results keeps the same mounted page — exactly as before the
+ * transitions were added — while every top-level destination animates.
+ */
+function transitionKey(pathname: string): string {
+  const parts = pathname.split("/").filter(Boolean);
+  return parts.length > 1 ? `/${parts[0]}/:id` : `/${parts[0] ?? ""}`;
+}
+
 function AppShell() {
+  const location = useLocation();
   const [introPhase, setIntroPhase] = useState<IntroPhase>(() => {
     try {
       return sessionStorage.getItem(SPLASH_KEY) === "1" ? "done" : "splash";
@@ -70,61 +89,73 @@ function AppShell() {
       {introPhase === "doorReveal" && <DoorReveal onComplete={finishIntro} />}
       <div className="flex min-h-screen relative">
         <Sidebar />
-        <div className="flex min-h-screen flex-1 flex-col relative">
+        <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
           <ConfigWarningBanner />
           <Navbar />
           <div className="flex-1 relative z-10">
             <ErrorBoundary>
-              <Suspense fallback={<PageFallback />}>
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/demos" element={<DemosPage />} />
-                  <Route path="/calculator" element={<CalculatorPage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/tiles" element={<ProtectedRoute><TileCatalogPage /></ProtectedRoute>} />
-                  <Route path="/my-tiles" element={<ProtectedRoute><MyTilesPage /></ProtectedRoute>} />
-                  <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-                  <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
-                  <Route path="/payments" element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
-                  <Route path="/my-visualizations" element={<MyVisualizationsPage />} />
-                  <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-                  <Route
-                    path="/projects"
-                    element={
-                      <ProtectedRoute>
-                        <ProjectsPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/upload"
-                    element={
-                      <ProtectedRoute>
-                        <UploadPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/analysis/:roomId"
-                    element={
-                      <ProtectedRoute>
-                        <AnalysisPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/tiles/:roomId"
-                    element={
-                      <ProtectedRoute>
-                        <TilesPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* Unprotected: the API itself decides access (owner, or anonymous
-                      if the visualization was made public) — see vizGet.ts. */}
-                  <Route path="/result/:visualizationId" element={<ResultPage />} />
-                </Routes>
-              </Suspense>
+              <AnimatePresence
+                mode="wait"
+                initial={false}
+                onExitComplete={() => {
+                  // New page starts at the top, like a normal navigation — but
+                  // never yank the view when the URL carries an in-page anchor.
+                  if (!window.location.hash) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+                }}
+              >
+                <PageTransition key={transitionKey(location.pathname)}>
+                  <Suspense fallback={<PageFallback />}>
+                    <Routes location={location}>
+                      <Route path="/" element={<LandingPage />} />
+                      <Route path="/demos" element={<DemosPage />} />
+                      <Route path="/calculator" element={<CalculatorPage />} />
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/tiles" element={<ProtectedRoute><TileCatalogPage /></ProtectedRoute>} />
+                      <Route path="/my-tiles" element={<ProtectedRoute><MyTilesPage /></ProtectedRoute>} />
+                      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                      <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
+                      <Route path="/payments" element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
+                      <Route path="/my-visualizations" element={<MyVisualizationsPage />} />
+                      <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+                      <Route
+                        path="/projects"
+                        element={
+                          <ProtectedRoute>
+                            <ProjectsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/upload"
+                        element={
+                          <ProtectedRoute>
+                            <UploadPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/analysis/:roomId"
+                        element={
+                          <ProtectedRoute>
+                            <AnalysisPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/tiles/:roomId"
+                        element={
+                          <ProtectedRoute>
+                            <TilesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      {/* Unprotected: the API itself decides access (owner, or anonymous
+                          if the visualization was made public) — see vizGet.ts. */}
+                      <Route path="/result/:visualizationId" element={<ResultPage />} />
+                    </Routes>
+                  </Suspense>
+                </PageTransition>
+              </AnimatePresence>
             </ErrorBoundary>
           </div>
           <Footer />
@@ -137,12 +168,14 @@ function AppShell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <WorkflowProvider>
-        <BrowserRouter>
-          <AppShell />
-        </BrowserRouter>
-      </WorkflowProvider>
-    </AuthProvider>
+    <MotionConfig reducedMotion="user">
+      <AuthProvider>
+        <WorkflowProvider>
+          <BrowserRouter>
+            <AppShell />
+          </BrowserRouter>
+        </WorkflowProvider>
+      </AuthProvider>
+    </MotionConfig>
   );
 }

@@ -19,6 +19,8 @@ const applyPaidCalls: any[] = [];
 const markFailedCalls: any[] = [];
 const applyRefundCalls: any[] = [];
 const webhookEventsSeen = new Set<string>();
+const webhookEventsProcessed = new Set<string>();
+let applyPaidShouldFail = false;
 
 jest.mock("../server/db/billing", () => ({
   getCreditPackage: async (id: string) => packages[id] ?? null,
@@ -32,6 +34,7 @@ jest.mock("../server/db/billing", () => ({
     return p && p.userId === userId ? p : null;
   },
   applyPaidPayment: async (orderId: string, paymentId: string, amountPaise: number, currency: string) => {
+    if (applyPaidShouldFail) throw new Error("transient db error");
     applyPaidCalls.push({ orderId, paymentId, amountPaise, currency });
     return { credited: true, duplicate: false, credits: 100 };
   },
@@ -45,6 +48,12 @@ jest.mock("../server/db/billing", () => ({
     if (webhookEventsSeen.has(eventId)) return false;
     webhookEventsSeen.add(eventId);
     return true;
+  },
+  markWebhookEventProcessed: async (eventId: string) => {
+    webhookEventsProcessed.add(eventId);
+  },
+  forgetWebhookEvent: async (eventId: string) => {
+    webhookEventsSeen.delete(eventId);
   },
   getBillingSummary: async () => ({ balance: 90, used: {}, generations: {}, payments: {} }),
 }));
@@ -197,6 +206,21 @@ describe("POST /api/razorpayWebhook", () => {
     expect(res2.statusCode).toBe(200);
     expect((res2._json as any).duplicate).toBe(true);
     expect(applyPaidCalls).toHaveLength(1); // credited exactly once, not twice
+  });
+
+  test("a processing failure answers 500 and the redelivery is processed (payment never silently lost)", async () => {
+    const body = JSON.stringify({ id: "evt_fail", event: "payment.captured", payload: { payment: { entity: { id: "pay_f", order_id: "order_f", amount: 49900, currency: "INR", status: "captured" } } } });
+    const headers = { "x-razorpay-signature": signWebhook(body), "x-razorpay-event-id": "evt_fail" };
+    applyPaidShouldFail = true;
+    const res1 = makeRes();
+    await webhookHandler(fakeStreamReq(body, headers), res1);
+    expect(res1.statusCode).toBe(500);
+    applyPaidShouldFail = false;
+    const res2 = makeRes();
+    await webhookHandler(fakeStreamReq(body, headers), res2);
+    expect(res2.statusCode).toBe(200);
+    expect((res2._json as any).duplicate).toBeUndefined();
+    expect(webhookEventsProcessed.has("evt_fail")).toBe(true);
   });
 
   test("invalid signature is rejected with 400 and never touches the ledger", async () => {

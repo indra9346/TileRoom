@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TileGrid } from "@/components/tiles/TileGrid";
 import { cn } from "@/lib/cn";
-import { createMyTile, searchTiles } from "@/api/tiles";
+import { createMyTile, searchAllTiles } from "@/api/tiles";
 import { friendlyErrorMessage } from "@/api/client";
 import { validateRoomImageFile } from "@/api/rooms";
 import { SURFACES } from "@/lib/designPatterns";
@@ -38,10 +38,14 @@ export function TilePickerModal({ open, onClose, surface, slotLabel, recommended
     setTab("catalog");
     setLoading(true);
     setError(null);
-    searchTiles({ page: 1, pageSize: 50 })
-      .then((res) => setTiles(res.tiles))
-      .catch((err) => setError(friendlyErrorMessage(err, "We couldn't load your catalog.")))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    searchAllTiles()
+      .then((all) => !cancelled && setTiles(all))
+      .catch((err) => !cancelled && setError(friendlyErrorMessage(err, "We couldn't load your catalog.")))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const shown = useMemo(() => {

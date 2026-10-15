@@ -3,17 +3,13 @@ import type { Tile } from "@/api/types";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import { getPublicTileImageUrl } from "@/lib/tileImage";
+import { formatTileSize } from "@/lib/fitRecommend";
+import { hoverLift, staggerItem } from "@/components/ui/motion";
 
 const categoryLabel: Record<Tile["category"], string> = {
   floor: "Floor",
   wall: "Wall",
   both: "Floor + Wall",
-};
-
-/** Inherited from TileGrid's stagger container. */
-const cardVariants = {
-  hidden: { opacity: 0, y: 12, scale: 0.98 },
-  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.35, ease: "easeOut" } },
 };
 
 export function TileCard({
@@ -31,13 +27,11 @@ export function TileCard({
     <motion.button
       type="button"
       onClick={() => onSelect(tile)}
-      variants={cardVariants}
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.18 }}
+      variants={staggerItem}
+      {...hoverLift}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-2xl border bg-white text-left shadow-soft transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500",
-        selected ? "border-stone-900 ring-2 ring-stone-900" : "border-stone-200 hover:shadow-lg",
+        "group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white text-left shadow-soft transition-[box-shadow,border-color] duration-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay-500",
+        selected ? "border-stone-900 ring-2 ring-stone-900" : "border-stone-200 hover:border-sage-400/70 hover:shadow-lift",
       )}
       aria-pressed={selected}
     >
@@ -45,7 +39,7 @@ export function TileCard({
         <img
           src={getPublicTileImageUrl(tile.storagePath)}
           alt={`${tile.name} tile sample`}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-700 ease-out-quint group-hover:scale-[1.06]"
           loading="lazy"
           onError={(e) => {
             e.currentTarget.style.display = "none";
@@ -72,36 +66,36 @@ export function TileCard({
       </div>
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="font-display text-base leading-tight text-stone-900">{tile.name}</p>
-            {tile.brand && <p className="text-xs text-stone-500">{tile.brand}</p>}
+          <div className="min-w-0">
+            <p className="break-words font-display text-base leading-tight text-stone-900">{tile.name}</p>
+            {tile.brand && <p className="truncate text-xs text-stone-500">{tile.brand}</p>}
           </div>
           <Badge tone="neutral">{categoryLabel[tile.category]}</Badge>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-stone-500">
+        <dl className="grid grid-cols-1 gap-x-2 gap-y-1 text-xs text-stone-500 min-[420px]:grid-cols-2">
           {tile.material && (
             <div>
-              <dt className="inline text-stone-400">Material: </dt>
+              <dt className="inline text-stone-500">Material: </dt>
               <dd className="inline text-stone-700">{tile.material}</dd>
             </div>
           )}
           {tile.finish && (
             <div>
-              <dt className="inline text-stone-400">Finish: </dt>
+              <dt className="inline text-stone-500">Finish: </dt>
               <dd className="inline text-stone-700">{tile.finish}</dd>
             </div>
           )}
           {tile.colorFamily && (
             <div>
-              <dt className="inline text-stone-400">Color: </dt>
+              <dt className="inline text-stone-500">Color: </dt>
               <dd className="inline text-stone-700">{tile.colorFamily}</dd>
             </div>
           )}
           {tile.sizeMm && (
             <div>
-              <dt className="inline text-stone-400">Size: </dt>
-              <dd className="inline text-stone-700">{tile.sizeMm} mm</dd>
+              <dt className="inline text-stone-500">Size: </dt>
+              <dd className="inline text-stone-700">{formatTileSize(tile.sizeMm)}</dd>
             </div>
           )}
         </dl>

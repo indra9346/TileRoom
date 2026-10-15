@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 import { PATTERNS, SURFACES, SURFACE_ORDER } from "@/lib/designPatterns";
 import { chosenTiles, withPattern, type DraftArea } from "@/lib/designDraft";
-import { recommendPatterns, sizeToDimensions } from "@/lib/fitRecommend";
+import { formatTileSize, recommendPatterns, sizeToDimensions } from "@/lib/fitRecommend";
 import type { RoomType, SurfaceType, Tile } from "@/api/types";
 import { AreaSizeAssist } from "./AreaSizeAssist";
 import { PatternPicker } from "./PatternPicker";
@@ -63,7 +63,7 @@ function Slot({ role, required, tile, onPick, onClear }: { role: string; require
         {tile ? (
           <>
             <p className="truncate text-sm font-medium text-stone-900">{tile.name}</p>
-            <p className="truncate text-xs text-stone-500">{[tile.brand, tile.sizeMm && `${tile.sizeMm} mm`, tile.finish].filter(Boolean).join(" · ") || "From your catalog"}</p>
+            <p className="truncate text-xs text-stone-500">{[tile.brand, formatTileSize(tile.sizeMm), tile.finish].filter(Boolean).join(" · ") || "From your catalog"}</p>
             <button type="button" onClick={onPick} className="mt-1 rounded-md border border-clay-300 px-2 py-0.5 text-xs font-medium text-clay-700 hover:bg-clay-50">
               Change tile
             </button>

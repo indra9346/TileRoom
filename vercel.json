@@ -7,6 +7,10 @@
       "destination": "/api/projects?op=rooms&id=:id"
     },
     {
+      "source": "/api/templates",
+      "destination": "/api/projects?op=templates"
+    },
+    {
       "source": "/api/rooms/upload",
       "destination": "/api/rooms?op=upload"
     },

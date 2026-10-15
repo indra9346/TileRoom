@@ -57,6 +57,14 @@ class FakeQueryBuilder implements PromiseLike<{ data: unknown; error: FakeError;
     this.filters.push((r) => r[col] === val);
     return this;
   }
+  is(col: string, val: null) {
+    this.filters.push((r) => (r[col] ?? null) === val);
+    return this;
+  }
+  lt(col: string, val: string | number) {
+    this.filters.push((r) => r[col] !== undefined && r[col] !== null && (r[col] as string | number) < val);
+    return this;
+  }
   in(col: string, vals: unknown[]) {
     this.filters.push((r) => vals.includes(r[col]));
     return this;

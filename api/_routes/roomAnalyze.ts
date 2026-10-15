@@ -4,7 +4,7 @@ import { authenticateRequest } from "../../server/lib/auth.js";
 import { parseOrThrow, uuidSchema } from "../../server/lib/validation.js";
 import { checkRateLimit, RateLimits } from "../../server/lib/rateLimit.js";
 import { verifyRoomOwnership, updateRoomStatus } from "../../server/db/rooms.js";
-import { getAnalysisByRoomUploadId, insertAnalysis } from "../../server/db/analyses.js";
+import { getAnalysisByRoomUploadId, insertAnalysis, toClientAnalysis } from "../../server/db/analyses.js";
 import { downloadRoomImage } from "../../server/storage/imageStorage.js";
 import { analyzeRoom } from "../../server/ai/analyzeRoom.js";
 import { AiServiceError } from "../../server/ai/errors.js";
@@ -22,7 +22,7 @@ export default createHandler({ methods: ["POST"], operation: "analyzeRoomEndpoin
 
   const existing = await getAnalysisByRoomUploadId(room.id);
   if (existing) {
-    res.status(200).json({ analysis: existing, reused: true });
+    res.status(200).json({ analysis: toClientAnalysis(existing), reused: true });
     return;
   }
 
@@ -36,7 +36,7 @@ export default createHandler({ methods: ["POST"], operation: "analyzeRoomEndpoin
     const saved = await insertAnalysis(analysis);
     await updateRoomStatus(room.id, "analyzed");
 
-    res.status(201).json({ analysis: saved, reused: false });
+    res.status(201).json({ analysis: toClientAnalysis(saved), reused: false });
   } catch (err) {
     const safeMessage = err instanceof AiServiceError ? err.safeMessage : "Room analysis failed.";
     await updateRoomStatus(room.id, "failed", safeMessage);

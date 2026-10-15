@@ -13,7 +13,22 @@ import { applyLayout, newArea, toggleWall, type DraftArea } from "./designDraft"
  * numbers the connected walls) and adds/removes the matching areas, so the server needs no template
  * concept - it validates and prompts from the same layout + areas as before.
  */
-export const TEMPLATE_IDS = ["washroom", "washroom_corner", "kitchen", "three_walls", "corner", "puja_mandir", "balcony", "feature_wall", "staircase", "free"] as const;
+export const TEMPLATE_IDS = [
+  "washroom",
+  "washroom_corner",
+  "shower_enclosure",
+  "kitchen",
+  "kitchen_l",
+  "floor_only",
+  "three_walls",
+  "corner",
+  "puja_mandir",
+  "balcony",
+  "feature_wall",
+  "elevation",
+  "staircase",
+  "free",
+] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
 /** Where a face sits in the 3D box. */
@@ -94,6 +109,50 @@ export const TEMPLATES: Record<TemplateId, RoomTemplate> = {
       },
     ],
   },
+  shower_enclosure: {
+    id: "shower_enclosure",
+    label: "Shower / wet area",
+    blurb: "Bathroom walls + separate shower-wall zone + floor",
+    layout: "c_shape",
+    scene: "box",
+    faces: [
+      ...boxFaces(),
+      {
+        key: "shower",
+        role: "backsplash",
+        label: "Shower walls",
+        surface: "shower_wall",
+        location: "Shower area walls",
+        note: "Template surface: only the wall surfaces inside the shower or wet area. The numbered walls cover the rest of the bathroom.",
+      },
+    ],
+  },
+  kitchen_l: {
+    id: "kitchen_l",
+    label: "L-shaped kitchen",
+    blurb: "Two connected walls + counter backsplash + floor",
+    layout: "l_shape",
+    scene: "corner",
+    faces: [
+      ...cornerFaces(),
+      {
+        key: "backsplash",
+        role: "backsplash",
+        label: "Backsplash",
+        surface: "backsplash",
+        location: "Kitchen backsplash",
+        note: "Template surface: the wall zone between the counter and the wall cabinets, on both walls of the L. The walls cover the rest.",
+      },
+    ],
+  },
+  floor_only: {
+    id: "floor_only",
+    label: "Floor only",
+    blurb: "Living room, bedroom, hall or office: just the floor",
+    layout: "c_shape",
+    scene: "box",
+    faces: [{ ...floor, label: "Room floor", note: "Template surface: the whole visible floor. Every wall stays exactly as in the photo." }],
+  },
   three_walls: {
     id: "three_walls",
     label: "Any room: 3 walls",
@@ -144,6 +203,17 @@ export const TEMPLATES: Record<TemplateId, RoomTemplate> = {
     faces: [
       floor,
       { key: "C2", role: "back", label: "Feature wall (C2)", surface: "wall", wall: "C2", location: "C2 (middle wall)", note: "" },
+    ],
+  },
+  elevation: {
+    id: "elevation",
+    label: "Front elevation",
+    blurb: "House facade / compound wall: one outer wall + entrance floor",
+    layout: "c_shape",
+    scene: "box",
+    faces: [
+      { ...floor, label: "Entrance / porch floor", note: "Template surface: the porch, parking or entrance floor in front of the facade." },
+      { key: "C2", role: "back", label: "Facade wall (C2)", surface: "wall", wall: "C2", location: "C2 (middle wall)", note: "" },
     ],
   },
   staircase: {

@@ -5,7 +5,8 @@ import { Errors } from "../../server/lib/apiError.js";
 import { parseOrThrow, uuidSchema } from "../../server/lib/validation.js";
 import { getVisualizationById, deleteOwnedVisualization } from "../../server/db/visualizations.js";
 import { removeOwnedImagesQuietly } from "../../server/storage/cleanup.js";
-import { getLatestJobForVisualization } from "../../server/db/generationJobs.js";
+import { getLatestJobForVisualization, isJobStale, markJobFailed } from "../../server/db/generationJobs.js";
+import { updateVisualizationStatus } from "../../server/db/visualizations.js";
 import { getTileById } from "../../server/db/tiles.js";
 import { createSignedUrl } from "../../server/storage/imageStorage.js";
 import { BUCKETS } from "../../server/storage/buckets.js";
@@ -43,6 +44,17 @@ export default createHandler({ methods: ["GET", "DELETE"], operation: "getVisual
     getTileById(visualization.tileId),
   ]);
 
+  // A request killed mid-generation (timeout / crash) leaves the row "generating" forever; resolve it so the
+  // result page and history stop polling. Its credit hold is returned by the stale-hold release.
+  if ((visualization.status === "generating" || visualization.status === "pending") && latestJob && isJobStale(latestJob)) {
+    const message = "Generation did not finish in time. Please try again.";
+    await markJobFailed(latestJob.id, message);
+    await updateVisualizationStatus(visualization.id, { status: "failed", errorMessage: message });
+    visualization.status = "failed";
+    visualization.errorMessage = message;
+    latestJob.status = "failed";
+  }
+
   // Tiles used by a multi-area design (every id was validated against the owner's catalog at generation time).
   const designTileIds = [...new Set(visualization.design?.areas.flatMap((a) => a.tileIds) ?? [])];
   const designTiles = (await Promise.all(designTileIds.map((id) => getTileById(id)))).filter((t) => t !== null);
@@ -59,6 +71,9 @@ export default createHandler({ methods: ["GET", "DELETE"], operation: "getVisual
       id: visualization.id,
       roomUploadId: visualization.roomUploadId,
       status: visualization.status,
+      tileId: visualization.tileId,
+      roomType: visualization.roomType,
+      creditsCharged: visualization.creditsCharged,
       appliedSurfaces: visualization.appliedSurfaces,
       errorMessage: visualization.errorMessage,
       requirements: visualization.requirements,

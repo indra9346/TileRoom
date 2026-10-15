@@ -18,6 +18,7 @@ export default createHandler({ methods: ["GET"], operation: "listProjectRooms" }
   const withThumbnails = await Promise.all(
     rooms.map(async (room) => ({
       id: room.id,
+      projectId: room.projectId,
       status: room.status,
       errorMessage: room.errorMessage,
       createdAt: room.createdAt,

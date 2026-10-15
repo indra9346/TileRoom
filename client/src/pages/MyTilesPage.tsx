@@ -14,7 +14,9 @@ import { createMyTile, listMyTiles, setMyTileActive } from "@/api/tiles";
 import { friendlyErrorMessage } from "@/api/client";
 import { validateRoomImageFile } from "@/api/rooms";
 import { getPublicTileImageUrl } from "@/lib/tileImage";
+import { formatTileSize } from "@/lib/fitRecommend";
 import type { RoomType, Tile, TileCategory } from "@/api/types";
+import { EASE_OUT, hoverLift, staggerContainer, staggerItem } from "@/components/ui/motion";
 
 const ROOMS: { value: RoomType; label: string }[] = [
   { value: "kitchen", label: "Kitchen" },
@@ -28,6 +30,9 @@ const ROOMS: { value: RoomType; label: string }[] = [
 ];
 
 const label = "mb-1.5 block text-sm font-medium text-stone-700";
+const choiceInput =
+  "h-4 w-4 shrink-0 cursor-pointer accent-sage-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne-500";
+const choiceLabel = "flex cursor-pointer items-center gap-2 rounded-md py-0.5 text-sm text-stone-700 transition-colors hover:text-stone-950";
 
 export function MyTilesPage() {
   const [tiles, setTiles] = useState<Tile[] | null>(null);
@@ -146,18 +151,48 @@ export function MyTilesPage() {
       />
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
-        <Card className="h-fit shadow-md border-stone-200">
+        <motion.div
+          className="min-w-0"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.15, ease: EASE_OUT }}
+        >
+        <Card className="h-fit border-stone-200 shadow-md">
           <CardBody>
             <h2 className="font-display text-xl text-stone-900">Add a New Tile</h2>
             <form className="mt-5 space-y-4" onSubmit={onSubmit}>
               <div>
                 <span className={label}>Tile photo *</span>
-                <label className="flex aspect-[4/3] cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 text-center text-sm text-stone-500 hover:border-clay-400">
-                  {preview ? (
-                    <img src={preview} alt="Preview of the tile you selected" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="px-4">Click to choose a clear, straight-on photo of the tile surface (JPEG, PNG or WebP)</span>
-                  )}
+                <label className="group flex aspect-[4/3] cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 text-center text-sm text-stone-500 transition-[border-color,background-color] duration-300 focus-within:border-champagne-500 hover:border-clay-400 hover:bg-surface-sage/50">
+                  <AnimatePresence mode="wait" initial={false}>
+                    {preview ? (
+                      <motion.img
+                        key={preview}
+                        src={preview}
+                        alt="Preview of the tile you selected"
+                        className="h-full w-full object-cover"
+                        initial={{ opacity: 0, scale: 1.06 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5, ease: EASE_OUT }}
+                      />
+                    ) : (
+                      <motion.span
+                        key="placeholder"
+                        className="flex flex-col items-center gap-2 px-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-stone-400 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:text-sage-600">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="m21 15-5-5L5 21" />
+                        </svg>
+                        Click to choose a clear, straight-on photo of the tile surface (JPEG, PNG or WebP)
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                   <input type="file" accept="image/*" className="sr-only" onChange={(e) => pickImage(e.target.files?.[0])} />
                 </label>
               </div>
@@ -186,10 +221,10 @@ export function MyTilesPage() {
 
               <div>
                 <span className={label}>Category *</span>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {(["floor", "wall", "both"] as TileCategory[]).map((cat) => (
-                    <label key={cat} className="flex items-center gap-2 text-sm text-stone-700 capitalize">
-                      <input type="radio" name="category" checked={category === cat} onChange={() => setCategory(cat)} />
+                    <label key={cat} className={`${choiceLabel} capitalize`}>
+                      <input type="radio" name="category" className={choiceInput} checked={category === cat} onChange={() => setCategory(cat)} />
                       {cat}
                     </label>
                   ))}
@@ -211,7 +246,7 @@ export function MyTilesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div>
                   <label className={label} htmlFor="color">
                     Color family
@@ -224,7 +259,7 @@ export function MyTilesPage() {
                   </label>
                   <Input id="size" value={size} onChange={(e) => setSize(e.target.value)} placeholder="e.g. 600x1200" />
                 </div>
-                <div>
+                <div className="col-span-2 sm:col-span-1">
                   <label className={label} htmlFor="price">
                     Price / sq ft
                   </label>
@@ -236,9 +271,10 @@ export function MyTilesPage() {
                 <legend className={label}>Suitable spaces</legend>
                 <div className="grid grid-cols-2 gap-2">
                   {ROOMS.map((r) => (
-                    <label key={r.value} className="flex items-center gap-2 text-sm text-stone-700">
+                    <label key={r.value} className={choiceLabel}>
                       <input
                         type="checkbox"
+                        className={choiceInput}
                         checked={rooms.includes(r.value)}
                         onChange={() => setRooms((prev) => (prev.includes(r.value) ? prev.filter((x) => x !== r.value) : [...prev, r.value]))}
                       />
@@ -246,14 +282,24 @@ export function MyTilesPage() {
                     </label>
                   ))}
                 </div>
-                <p className="mt-1.5 text-xs text-stone-400">Leave empty if the tile suits any room.</p>
+                <p className="mt-1.5 text-xs text-stone-500">Leave empty if the tile suits any room.</p>
               </fieldset>
 
-              {formError && (
-                <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} role="alert" className="rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                  {formError}
-                </motion.p>
-              )}
+              <AnimatePresence initial={false}>
+                {formError && (
+                  <motion.p
+                    key="form-error"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0, x: [0, -5, 5, -3, 3, 0] }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.35 }}
+                    role="alert"
+                    className="rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                  >
+                    {formError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
               <AnimatePresence>
                 {justAdded && !formError && (
                   <motion.p
@@ -275,8 +321,14 @@ export function MyTilesPage() {
             </form>
           </CardBody>
         </Card>
+        </motion.div>
 
-        <div>
+        <motion.div
+          className="min-w-0"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.25, ease: EASE_OUT }}
+        >
           <h2 className="font-display text-xl text-stone-900">Your Showroom Catalog{tiles ? ` (${tiles.length})` : ""}</h2>
           <div className="mt-4">
             {loadError ? (
@@ -284,7 +336,7 @@ export function MyTilesPage() {
             ) : tiles === null ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="aspect-[3/4] w-full" />
+                  <Skeleton key={i} className="aspect-[3/4] w-full rounded-2xl" />
                 ))}
               </div>
             ) : tiles.length === 0 ? (
@@ -294,27 +346,42 @@ export function MyTilesPage() {
                 className="grid grid-cols-2 gap-4 sm:grid-cols-3"
                 initial="hidden"
                 animate="show"
-                variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
+                variants={staggerContainer(0.05)}
               >
                 <AnimatePresence>
                   {tiles.map((tile) => (
                     <motion.div
                       key={tile.id}
                       layout
-                      variants={{ hidden: { opacity: 0, y: 12, scale: 0.97 }, show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.3, ease: "easeOut" } } }}
+                      variants={staggerItem}
+                      {...hoverLift}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className={tile.isActive ? "" : "opacity-60 transition-opacity duration-300"}
+                      className="group min-w-0"
                     >
-                      <Card className="overflow-hidden shadow-soft hover:shadow-md transition">
-                        <div className="aspect-square bg-stone-100">
-                          <img src={getPublicTileImageUrl(tile.storagePath)} alt={tile.name} className="h-full w-full object-cover" loading="lazy" />
+                      {/* Dimming lives on the Card: framer owns the wrapper's inline opacity, which would override a class there. */}
+                      <Card
+                        className={`h-full overflow-hidden transition-[opacity,box-shadow,border-color] duration-300 group-hover:border-sage-400/70 group-hover:shadow-lift ${
+                          tile.isActive ? "" : "opacity-60"
+                        }`}
+                      >
+                        <div className="aspect-square overflow-hidden bg-stone-100">
+                          <img
+                            src={getPublicTileImageUrl(tile.storagePath)}
+                            alt={tile.name}
+                            className="h-full w-full object-cover transition-transform duration-700 ease-out-quint group-hover:scale-[1.06]"
+                            loading="lazy"
+                          />
                         </div>
                         <div className="space-y-1.5 p-3">
-                          <p className="font-display leading-tight text-stone-900 font-semibold">{tile.name}</p>
-                          <p className="text-xs text-stone-500">{[tile.brand, tile.material, tile.sizeMm && `${tile.sizeMm} mm`].filter(Boolean).join(" · ")}</p>
-                          <div className="flex items-center justify-between pt-1">
+                          <p className="break-words font-display font-semibold leading-tight text-stone-900">{tile.name}</p>
+                          <p className="break-words text-xs text-stone-500">{[tile.brand, tile.material, formatTileSize(tile.sizeMm)].filter(Boolean).join(" · ")}</p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                             <Badge tone={tile.isActive ? "success" : "neutral"}>{tile.isActive ? "Active" : "Hidden"}</Badge>
-                            <button type="button" onClick={() => toggle(tile)} className="text-xs font-medium text-clay-700 hover:underline">
+                            <button
+                              type="button"
+                              onClick={() => toggle(tile)}
+                              className="rounded-md px-1.5 py-1 text-xs font-medium text-clay-700 transition-[background-color,color,transform] duration-200 hover:bg-clay-100 hover:text-clay-800 active:scale-95"
+                            >
                               {tile.isActive ? "Hide" : "Show"}
                             </button>
                           </div>
@@ -326,7 +393,7 @@ export function MyTilesPage() {
               </motion.div>
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
     </PageContainer>
   );

@@ -89,6 +89,8 @@ export function friendlyErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ImagePreprocessError) return err.message;
   if (err instanceof ApiClientError) {
     switch (err.code) {
+      case "GENERATION_IN_PROGRESS":
+        return "This design is already being generated. Open My Visualizations to see it when it is ready.";
       case "PAYLOAD_TOO_LARGE":
         return "This image is too large to upload. Please try a smaller photo.";
       case "UNAUTHENTICATED":

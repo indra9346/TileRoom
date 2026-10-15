@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { TileGrid } from "@/components/tiles/TileGrid";
 import { TileFilters } from "@/components/tiles/TileFilters";
@@ -11,6 +12,7 @@ import { friendlyErrorMessage } from "@/api/client";
 import { searchTiles, type TileSearchFilters } from "@/api/tiles";
 import { useWorkflow } from "@/context/WorkflowContext";
 import type { Tile } from "@/api/types";
+import { Reveal, springModal } from "@/components/ui/motion";
 
 /** Catalog-only browsing (no room context yet) — used by the top nav and the landing page's "Explore Tiles" CTA. */
 export function TileCatalogPage() {
@@ -21,6 +23,16 @@ export function TileCatalogPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [filters, setFilters] = useState<TileSearchFilters>({ page: 1, pageSize: 20 });
+
+  const pageSize = filters.pageSize ?? 20;
+  const page = filters.page ?? 1;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  function goToPage(next: number) {
+    setFilters((prev) => ({ ...prev, page: Math.min(Math.max(1, next), pageCount) }));
+    // Bring the top of the grid back into view so the new page starts at its first row.
+    document.getElementById("catalog-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   const loadTiles = useCallback(async () => {
     setLoading(true);
@@ -64,9 +76,10 @@ export function TileCatalogPage() {
         }
       />
 
-      <div className="mt-8">
-        <TileFilters filters={filters} onChange={setFilters} />
-      </div>
+      <Reveal immediate delay={0.2} className="mt-8">
+        {/* Any change to the search/filters starts again from page 1. */}
+        <TileFilters filters={filters} onChange={(next) => setFilters({ ...next, page: 1 })} />
+      </Reveal>
 
       {error ? (
         <div className="mt-6">
@@ -74,32 +87,83 @@ export function TileCatalogPage() {
         </div>
       ) : (
         <>
-          <p className="mt-4 text-sm text-stone-400">{loading ? "Loading…" : `${total} tile${total === 1 ? "" : "s"} found`}</p>
+          <p className="mt-4 text-sm text-stone-500" aria-live="polite">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={loading ? "loading" : `total-${total}`}
+                className="inline-block"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+              >
+                {loading ? "Loading…" : `${total} tile${total === 1 ? "" : "s"} found`}
+              </motion.span>
+            </AnimatePresence>
+          </p>
 
-          <div className="mt-4">
+          <div id="catalog-results" className="mt-4 scroll-mt-24">
             <TileGrid tiles={tiles} selectedTileId={selectedTile?.id} onSelect={selectTile} loading={loading} />
           </div>
+
+          {!loading && pageCount > 1 && (
+            <nav className="mt-8 flex animate-fade-up flex-wrap items-center justify-center gap-3" aria-label="Catalog pages">
+              <Button variant="outline" size="sm" onClick={() => goToPage(page - 1)} disabled={page <= 1}>
+                ← Previous
+              </Button>
+              <span className="min-w-[7rem] text-center text-sm tabular-nums text-stone-600" aria-live="polite">
+                Page {page} of {pageCount}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => goToPage(page + 1)} disabled={page >= pageCount}>
+                Next →
+              </Button>
+            </nav>
+          )}
         </>
       )}
 
-      {selectedTile && (
-        <Card className="sticky bottom-4 mt-10 border-stone-900 shadow-xl">
-          <CardBody className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
-              <div>
-                <p className="text-xs uppercase tracking-wider text-stone-500">Selected for Trial</p>
-                <p className="font-display text-lg font-semibold text-stone-900">{selectedTile.name}</p>
-              </div>
-            </div>
-            <Link to="/upload">
-              <Button size="lg" className="shadow-md">
-                TRY IN MY SPACE →
-              </Button>
-            </Link>
-          </CardBody>
-        </Card>
-      )}
+      <AnimatePresence>
+        {selectedTile && (
+          <motion.div
+            key="selected-tile-bar"
+            className="sticky bottom-4 z-20 mt-10"
+            initial={{ opacity: 0, y: 40, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: springModal }}
+            exit={{ opacity: 0, y: 30, transition: { duration: 0.2 } }}
+          >
+            <Card className="border-stone-900 bg-surface-card/95 shadow-xl backdrop-blur-md">
+              <CardBody className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wider text-stone-500">Selected for Trial</p>
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.p
+                        key={selectedTile.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="truncate font-display text-lg font-semibold text-stone-900"
+                      >
+                        {selectedTile.name}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                </div>
+                <Link to="/upload" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full shadow-md sm:w-auto">
+                    TRY IN MY SPACE →
+                  </Button>
+                </Link>
+              </CardBody>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageContainer>
   );
 }

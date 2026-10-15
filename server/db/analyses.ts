@@ -120,3 +120,9 @@ export async function insertAnalysis(analysis: RoomAnalysis): Promise<AnalysisRo
 
   return mapRow(data);
 }
+
+/** The analysis as sent to the browser: everything the UI shows, without the raw model payload. */
+export function toClientAnalysis(row: AnalysisRow): Omit<AnalysisRow, "rawAiResponse"> {
+  const { rawAiResponse: _raw, ...rest } = row;
+  return rest;
+}

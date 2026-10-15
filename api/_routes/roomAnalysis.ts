@@ -3,7 +3,7 @@ import { createHandler } from "../../server/lib/httpHandler.js";
 import { authenticateRequest } from "../../server/lib/auth.js";
 import { parseOrThrow, uuidSchema } from "../../server/lib/validation.js";
 import { verifyRoomOwnership } from "../../server/db/rooms.js";
-import { getAnalysisByRoomUploadId } from "../../server/db/analyses.js";
+import { getAnalysisByRoomUploadId, toClientAnalysis } from "../../server/db/analyses.js";
 import { Errors } from "../../server/lib/apiError.js";
 
 /** Read-only. NEVER calls Gemini — analysis is a reusable artifact created only by POST /api/rooms/:id/analyze. */
@@ -18,5 +18,5 @@ export default createHandler({ methods: ["GET"], operation: "getRoomAnalysis" },
     throw Errors.analysisNotFound();
   }
 
-  res.status(200).json({ analysis });
+  res.status(200).json({ analysis: toClientAnalysis(analysis) });
 });

@@ -124,6 +124,29 @@ export async function createNextGenerationJob(visualizationId: string): Promise<
 }
 
 /**
+ * A generation request can never run longer than the function's maxDuration (120 s). A job still
+ * "processing" well after that belongs to a request that was killed (timeout, crash, deploy) and will
+ * never finish on its own.
+ */
+export const STALE_GENERATION_MS = 6 * 60 * 1000;
+
+export function isJobStale(job: Pick<GenerationJobRow, "status" | "startedAt" | "createdAt">, now = Date.now()): boolean {
+  const running = job.status === "processing" || job.status === "pending" || (job.status as string) === "active";
+  const since = Date.parse(job.startedAt ?? job.createdAt);
+  return running && Number.isFinite(since) && now - since > STALE_GENERATION_MS;
+}
+
+/**
+ * Removes an attempt that never reached the model (e.g. the credit hold was refused), so it does not
+ * count against MAX_GENERATION_ATTEMPTS. Only a job that was never started can be removed.
+ */
+export async function discardUnstartedJob(jobId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase.from("generation_jobs").delete().eq("id", jobId).is("started_at", null);
+  if (error) apiLogger.warn("discardUnstartedJob failed", { operation: "discardUnstartedJob", jobId, errorCategory: error.code });
+}
+
+/**
  * Updates generation_jobs with schema-adaptive fallback so differences in the DB enum
  * (e.g., standard 'processing'/'completed'/'failed' vs legacy 'active'/'closed'/'rejected')
  * or transient database errors never abort user image generation.

@@ -22,7 +22,12 @@ export default createHandler({ methods: ["GET"], operation: "listRoomVisualizati
   const withUrls = await Promise.all(
     visualizations.map(async (v) => ({
       id: v.id,
+      roomUploadId: v.roomUploadId,
       tileId: v.tileId,
+      design: v.design ?? null,
+      isPublic: v.isPublic,
+      roomType: v.roomType,
+      creditsCharged: v.creditsCharged,
       appliedSurfaces: v.appliedSurfaces,
       status: v.status,
       errorMessage: v.errorMessage,

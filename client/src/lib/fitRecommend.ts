@@ -51,12 +51,26 @@ export function sizeProblem(size?: AreaSize): string | null {
 /** "600x600", "600 x 1200", "300×600 mm" -> mm. Anything smaller than 100 mm a side (mosaic sheets, inch values) is not trusted. */
 export function parseTileSizeMm(sizeMm: string | null | undefined): { w: number; h: number } | null {
   if (!sizeMm) return null;
-  const m = /(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)/i.exec(sizeMm);
+  // Same reading as the server's prompt parser: "600x1200", "600 x 1200 mm", "60x120 cm", "2x4 ft", "12 x 24 in".
+  const raw = sizeMm.toLowerCase().replace(/,/g, ".");
+  const m = /(\d+(?:\.\d+)?)\s*(?:mm|cm|in|"|ft|')?\s*[x×*]\s*(\d+(?:\.\d+)?)\s*(mm|cm|in|inch|inches|"|ft|feet|')?/.exec(raw);
   if (!m) return null;
-  const w = Number(m[1]!.replace(",", "."));
-  const h = Number(m[2]!.replace(",", "."));
+  const unit = m[3] ?? (/\bcm\b/.test(raw) ? "cm" : /\b(ft|feet)\b/.test(raw) ? "ft" : /\b(in|inch|inches)\b|"/.test(raw) ? "in" : "mm");
+  const factor = unit === "cm" ? 10 : unit === "ft" || unit === "feet" || unit === "'" ? 304.8 : unit.startsWith("in") || unit === '"' ? 25.4 : 1;
+  const w = Math.round(Number(m[1]) * factor);
+  const h = Math.round(Number(m[2]) * factor);
   if (!(w >= 100 && h >= 100 && w <= 3200 && h <= 3200)) return null;
   return { w, h };
+}
+
+/**
+ * Display text for a catalogue size. The field is free text, so "600x1200", "600x1200 mm" and "2x4 ft" all occur;
+ * a unit is appended only when the owner did not write one (never "600x1200 mm mm").
+ */
+export function formatTileSize(sizeMm: string | null | undefined): string | null {
+  const v = sizeMm?.replace(/\s+/g, " ").trim();
+  if (!v) return null;
+  return /(mm|cm|in|inch|inches|ft|feet|"|')\s*$/i.test(v) ? v : `${v} mm`;
 }
 
 export interface FitResult {
@@ -86,8 +100,9 @@ export function fitTile(tile: Tile, widthMm: number, heightMm: number): FitResul
     if (tw > widthMm * 1.05 || th > heightMm * 1.05) continue;
     const stepX = tw + JOINT_MM;
     const stepY = th + JOINT_MM;
-    const cols = Math.ceil(widthMm / stepX - 1e-9);
-    const rows = Math.ceil(heightMm / stepY - 1e-9);
+    // n tiles with n - 1 joints span n * tw + (n - 1) * J, so the count is ceil((W + J) / (tw + J)).
+    const cols = Math.ceil((widthMm + JOINT_MM) / stepX - 1e-9);
+    const rows = Math.ceil((heightMm + JOINT_MM) / stepY - 1e-9);
     const pieces = cols * rows;
     const covered = pieces * tw * th;
     const wastePct = Math.max(0, ((covered - widthMm * heightMm) / covered) * 100);

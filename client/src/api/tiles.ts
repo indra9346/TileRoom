@@ -85,3 +85,19 @@ export async function setMyTileActive(tileId: string, isActive: boolean): Promis
   const res = await apiSend<{ tile: Tile }>("PATCH", "/api/tiles/manage", { tileId, isActive });
   return res.tile;
 }
+
+/**
+ * Every active tile of the showroom, page by page (the search endpoint caps a page at 50).
+ * Used where the owner must be able to pick ANY tile, not only the newest 50. Bounded so a
+ * huge catalog can never loop forever.
+ */
+export async function searchAllTiles(filters: Omit<TileSearchFilters, "page" | "pageSize"> = {}, maxPages = 20): Promise<Tile[]> {
+  const pageSize = 50;
+  const all: Tile[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await searchTiles({ ...filters, page, pageSize });
+    all.push(...res.tiles);
+    if (res.tiles.length < pageSize || all.length >= res.total) break;
+  }
+  return all;
+}

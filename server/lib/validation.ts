@@ -324,3 +324,59 @@ export const verifyCheckoutBodySchema = z
     razorpay_signature: z.string().trim().min(1).max(200),
   })
   .strict();
+
+// ---- Custom design templates (saved Design Studio setups) ----
+
+export const MAX_DESIGN_TEMPLATES_PER_USER = 50;
+
+/** One saved area. Unlike a generation request a template may leave tiles unchosen, so tileIds can be empty. */
+export const templateAreaSchema = z
+  .object({
+    surface: z.enum(SURFACE_TYPES),
+    location: labelSchema(80),
+    wall: z.enum(WALL_IDS).optional(),
+    dimensions: z
+      .object({ widthMm: z.number().int().min(300).max(30000), heightMm: z.number().int().min(300).max(30000) })
+      .strict()
+      .optional(),
+    pattern: z.enum(DESIGN_PATTERNS).default("single"),
+    patternNote: labelSchema(160).optional(),
+    tileIds: z.array(uuidSchema).max(MAX_TILES_PER_AREA).default([]),
+  })
+  .strict()
+  .superRefine((area, ctx) => {
+    if (area.tileIds.length > PATTERN_SPECS[area.pattern].max) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["tileIds"], message: `"${PATTERN_SPECS[area.pattern].label}" takes at most ${PATTERN_SPECS[area.pattern].max} tile(s).` });
+    }
+  });
+
+export const designTemplateBodySchema = z
+  .object({
+    name: labelSchema(60),
+    description: z
+      .string()
+      .transform((v) => v.replace(/\s+/g, " ").trim())
+      .refine((v) => v.length <= 200, "Must be at most 200 characters.")
+      .optional(),
+    /** Id of the built-in room template it starts from (client-side table); unknown ids fall back to free naming in the UI. */
+    baseTemplate: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Unknown room template."),
+    areas: z.array(templateAreaSchema).min(1).max(MAX_DESIGN_AREAS),
+  })
+  .strict()
+  .superRefine((t, ctx) => {
+    const seen = new Set<string>();
+    for (const [i, area] of t.areas.entries()) {
+      const key = area.wall ? `wall:${area.wall}` : `${area.surface}|${area.location.toLowerCase()}`;
+      if (seen.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["areas", i, "location"], message: "Two areas have the same surface and location." });
+      seen.add(key);
+    }
+    if (new Set(t.areas.flatMap((a) => a.tileIds)).size > MAX_DISTINCT_TILES) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["areas"], message: `A template can use at most ${MAX_DISTINCT_TILES} different tiles.` });
+    }
+  });
+
+export type DesignTemplateBody = z.infer<typeof designTemplateBodySchema>;
+
+export const updateDesignTemplateBodySchema = z.object({ templateId: uuidSchema, template: designTemplateBodySchema }).strict();
+
+export const deleteDesignTemplateQuerySchema = z.object({ templateId: uuidSchema });
