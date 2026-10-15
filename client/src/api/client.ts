@@ -27,6 +27,26 @@ async function authHeader(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+/**
+ * Sends a request with the current access token. If the server says the session is no longer
+ * valid (401) while this browser still holds one — the token was revoked by a sign-out elsewhere,
+ * or the tab slept past its expiry — the session is refreshed once and the request retried. If the
+ * refresh fails too, the stale session is cleared locally, so the app shows the signed-out state
+ * (protected pages redirect to sign-in) instead of staying "signed in" with every call failing.
+ */
+async function sendWithAuth(build: (auth: Record<string, string>) => [string, RequestInit]): Promise<Response> {
+  const auth = await authHeader();
+  const res = await fetch(...build(auth));
+  if (res.status !== 401 || !auth.Authorization) return res;
+
+  const { data, error } = await supabase.auth.refreshSession();
+  if (!error && data.session?.access_token) {
+    return fetch(...build({ Authorization: `Bearer ${data.session.access_token}` }));
+  }
+  await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  return res;
+}
+
 async function parseErrorResponse(res: Response): Promise<ApiClientError> {
   // Vercel rejects bodies over 4.5 MB before our code runs, with a non-JSON 413.
   if (res.status === 413) {
@@ -51,35 +71,27 @@ export async function apiGet<T>(path: string, params?: Record<string, string | u
     }
   }
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: { ...(await authHeader()) },
-  });
+  const res = await sendWithAuth((auth) => [url.toString(), { method: "GET", headers: { ...auth } }]);
 
   if (!res.ok) throw await parseErrorResponse(res);
   return (await res.json()) as T;
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(await authHeader()),
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const res = await sendWithAuth((auth) => [
+    path,
+    { method: "POST", headers: { "Content-Type": "application/json", ...auth }, body: body !== undefined ? JSON.stringify(body) : undefined },
+  ]);
 
   if (!res.ok) throw await parseErrorResponse(res);
   return (await res.json()) as T;
 }
 
 export async function apiSend<T>(method: "PATCH" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    headers: { "Content-Type": "application/json", ...(await authHeader()) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  const res = await sendWithAuth((auth) => [
+    path,
+    { method, headers: { "Content-Type": "application/json", ...auth }, body: body !== undefined ? JSON.stringify(body) : undefined },
+  ]);
   if (!res.ok) throw await parseErrorResponse(res);
   return (await res.json()) as T;
 }
